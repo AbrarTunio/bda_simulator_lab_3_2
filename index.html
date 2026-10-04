@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hive warehouse, step by step: tables, partitions, buckets and formats</title>
+<meta name="description" content="A beginner explanation and a command-by-command simulator for the Implementing Data Warehousing Solutions lab with Apache Hive.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐝</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Ubuntu+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+:root{
+  --paper:#F2F4F6; --surface:#FFFFFF; --ink:#16202B; --muted:#58646F; --rule:#D3D9DF;
+  --signal:#0B6E69; --signal-soft:#DCEFEC; --danger:#B42318; --danger-soft:#FBE4E1; --ok:#2E7D32; --ok-soft:#E5F2E6;
+  --hive:#B7791F; --hive-soft:#FDF3DC; --hdfs:#1D4ED8; --hdfs-soft:#E3EAFC; --yarn:#7C3AED; --yarn-soft:#EFE7FD; --spark:#9A3412;
+  --term-bg:#101820; --term-fg:#D6DEE6; --term-dim:#8193A3; --term-prompt:#7EE2A8; --term-path:#8CC4FF;
+  --bs-body-bg:var(--paper); --bs-body-color:var(--ink); --bs-border-color:var(--rule);
+  --bs-body-font-family:'Ubuntu',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --bs-font-monospace:'Ubuntu Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+html{scroll-behavior:smooth;scroll-padding-top:70px}
+body{font-size:1rem;line-height:1.6}
+h1,h2,h3{font-weight:700;letter-spacing:-.01em;line-height:1.12}
+h1{font-size:clamp(2rem,4.6vw,3.3rem);max-width:21ch}
+h2{font-size:clamp(1.45rem,2.6vw,2rem)}
+h3{font-size:1.1rem}
+p{max-width:70ch}
+code{color:var(--ink);background:#E4E9EE;padding:.05em .3em;border-radius:3px;font-size:.98em}
+.muted{color:var(--muted)} .tnum{font-variant-numeric:tabular-nums}
+.btn{font-weight:500;border-radius:6px}
+.btn-ink{background:var(--ink);color:#fff;border:1px solid var(--ink)} .btn-ink:hover,.btn-ink:focus{background:#2A3744;color:#fff}
+.btn-line{background:var(--surface);color:var(--ink);border:1px solid var(--rule)} .btn-line:hover{border-color:var(--ink);color:var(--ink)}
+.btn:focus-visible{outline:3px solid var(--signal);outline-offset:2px;box-shadow:none}
+.topnav{background:rgba(242,244,246,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--rule)}
+.brand{font-weight:700;color:var(--ink);text-decoration:none}
+.topnav .nav-link{color:var(--muted);font-weight:500;font-size:.95rem;padding:.35rem .6rem}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:1rem 1.1rem}
+.panel-title{font-weight:700;font-size:.95rem;margin-bottom:.5rem}
+.hero{padding:2.75rem 0 1rem}
+.lead-text{font-size:1.15rem;color:var(--muted);max-width:64ch}
+
+/* signature: the cabinet of date drawers */
+.cabinet{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:5px;max-width:760px;margin-top:1.5rem}
+.drawer{border:2px solid var(--hive);border-radius:5px;background:#fff;height:46px;position:relative;font-size:.68rem;font-weight:700;display:flex;align-items:flex-end;justify-content:center;padding-bottom:3px;color:var(--muted);transition:background .4s}
+.drawer::before{content:"";position:absolute;top:8px;left:30%;right:30%;height:4px;border-radius:2px;background:var(--hive)}
+.drawer.open{background:var(--hive);color:#fff}
+.drawer.open::before{background:#fff}
+.cab-cap{font-size:.9rem;color:var(--muted);margin-top:.6rem;max-width:760px}
+
+/* beginner ideas */
+.ideas{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1rem}
+.idea{background:#fff;border:1.5px solid var(--rule);border-radius:10px;padding:1rem 1.1rem}
+.idea .num{display:inline-flex;width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-weight:700;align-items:center;justify-content:center;font-size:.85rem;margin-right:.4rem}
+.idea h3{display:flex;align-items:center;margin-bottom:.45rem}
+.idea p{font-size:.95rem;margin-bottom:.5rem}
+.idea .eg{font-size:.88rem;color:var(--muted);border-left:3px solid var(--hive);padding-left:.6rem}
+.vis{margin:.5rem 0 .6rem;font-size:.78rem}
+.flowv{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem}
+.flowv span{border:1.5px solid var(--rule);border-radius:6px;padding:.2rem .45rem;background:#fff;font-weight:500}
+.flowv span.h{border-color:var(--hive);background:var(--hive-soft)} .flowv span.y{border-color:var(--yarn);background:var(--yarn-soft)} .flowv span.d{border-color:var(--hdfs);background:var(--hdfs-soft)}
+.flowv b{color:var(--muted)}
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.twocol>div{border:1.5px solid var(--rule);border-radius:7px;padding:.4rem .5rem}
+.twocol .t{font-weight:700;font-size:.8rem}
+.gridv{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;margin-top:.25rem}
+.gridv i{height:12px;background:#E9EDF1;border-radius:2px}
+.gridv i.on{background:var(--hive)}
+.bucketv{display:grid;grid-template-columns:repeat(8,1fr);gap:3px}
+.bucketv i{height:20px;border-radius:3px;background:var(--hive-soft);border:1.5px solid var(--hive);font-style:normal;font-size:.6rem;display:flex;align-items:center;justify-content:center}
+.wtab{width:100%;font-size:.76rem;border-collapse:collapse}
+.wtab th,.wtab td{border-bottom:1px dashed var(--rule);padding:2px 4px;text-align:left}
+.wtab tr.hl td{background:var(--hive-soft);font-weight:700}
+.gloss{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.6rem 1.5rem;margin:0}
+.gloss>div{border-top:2px solid var(--ink);padding-top:.4rem}
+.gloss dt{font-weight:700} .gloss dd{margin:0;font-size:.92rem}
+
+/* simulator shell (shared pattern) */
+.rail{display:flex;gap:.4rem;overflow-x:auto;padding:.25rem 0 .6rem;scrollbar-width:thin}
+.rail button{flex:0 0 auto;border:1.5px solid var(--rule);background:#fff;border-radius:8px;padding:.35rem .6rem;font-weight:500;font-size:.85rem;color:var(--muted);text-align:left;line-height:1.2}
+.rail button b{display:block;font-size:1rem;color:var(--ink)}
+.rail button.cur{border-color:var(--ink);box-shadow:inset 0 -3px 0 var(--ink);color:var(--ink)}
+.rail button.done b::after{content:" ✓";color:var(--ok)}
+.step-head h2{margin-bottom:.25rem;font-size:clamp(1.25rem,2vw,1.6rem)}
+.cmd-list{max-height:min(52vh,560px);overflow:auto;padding-right:4px;scrollbar-width:thin}
+.cmd{border:1.5px solid var(--rule);border-radius:9px;background:#fff;margin-bottom:.6rem;overflow:hidden}
+.cmd.next{border-color:var(--ink)} .cmd.done{border-color:#B9DCC0}
+.cmd-top{display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;border-bottom:1px solid var(--rule);background:#F7F9FA}
+.term-badge{font-size:.72rem;font-weight:700;border-radius:4px;padding:1px 6px;background:var(--ink);color:#fff;white-space:nowrap}
+.term-badge.hive{background:var(--hive)}
+.extra{font-size:.68rem;font-weight:700;color:var(--hive);border:1px solid var(--hive);border-radius:4px;padding:0 5px;white-space:nowrap}
+.cmd-label{font-size:.84rem;font-weight:500;color:var(--muted);flex:1;min-width:0}
+.cmd pre{margin:0;padding:.55rem .7rem;font-size:.9rem;line-height:1.45;background:#FBFCFD;max-height:240px;overflow:auto;white-space:pre}
+.cmd .run{min-width:92px} .cmd .status{font-size:.78rem;font-weight:700;white-space:nowrap}
+.cmd.done .status{color:var(--ok)}
+.cmd-explain{padding:.6rem .75rem;border-top:1px dashed var(--rule);font-size:.92rem;background:#fff}
+.cmd-explain p{margin:.15rem 0 .4rem}
+.cmd-explain .simple{background:var(--hive-soft);border-radius:6px;padding:.35rem .55rem}
+.cmd-explain .see{color:var(--signal);font-weight:500}
+.cmd-explain .vm{font-size:.8rem;color:var(--muted)}
+.cmd-explain .fix{border-left:3px solid var(--danger);padding:.3rem .6rem;background:var(--danger-soft);border-radius:0 6px 6px 0;font-size:.88rem}
+.step-takeaway{border:2px solid var(--ink);border-radius:10px;padding:.9rem 1.1rem;background:#fff;margin-top:.75rem}
+.step-takeaway ul{margin:.25rem 0 0;padding-left:1.1rem} .step-takeaway li{margin:.2rem 0}
+.ff-box{border:1.5px dashed var(--rule);border-radius:9px;padding:.75rem .9rem;margin-bottom:.75rem;background:#fff}
+.term-wrap{border-radius:10px;overflow:hidden;border:1px solid #22303C;background:var(--term-bg)}
+.term-tabs{display:flex;gap:2px;background:#1B2631;padding:4px 4px 0}
+.term-tabs button{border:0;background:var(--term-bg);color:#fff;font-size:.8rem;font-weight:500;padding:.35rem .7rem;border-radius:6px 6px 0 0;display:flex;align-items:center;gap:.35rem}
+.term-tabs .dot{width:7px;height:7px;border-radius:50%;background:#5C6B78}
+.term-tabs .dot.hive{background:#F2C14E} .term-tabs .dot.busy{background:#FF9B8F}
+.term-body{height:300px;overflow:auto;padding:.6rem .75rem;margin:0;color:var(--term-fg);font-size:.86rem;line-height:1.4;white-space:pre;font-family:'Ubuntu Mono',ui-monospace,Menlo,Consolas,monospace}
+.term-body .pr{color:var(--term-prompt);font-weight:700} .term-body .pa{color:var(--term-path);font-weight:700}
+.term-body .dim{color:var(--term-dim)} .term-body .err{color:#FF9B8F} .term-body .ok{color:#8EE6A3} .term-body .warn{color:#F2C14E} .term-body .hi{color:#FFD479;font-weight:700}
+
+/* system view */
+.sys{position:sticky;top:64px;max-height:calc(100vh - 76px);overflow:auto;padding-right:2px}
+.statusbar{display:flex;flex-wrap:wrap;gap:.3rem .5rem;align-items:center;background:var(--ink);color:#fff;border-radius:9px;padding:.45rem .7rem;margin-bottom:.6rem;font-size:.8rem}
+.statusbar .svc{border:1px solid #3A4A58;border-radius:5px;padding:1px 7px;color:#9FB0BE}
+.statusbar .svc.on{background:#fff;color:var(--ink);border-color:#fff;font-weight:700}
+.zone{border:1.5px solid var(--rule);background:#fff;border-radius:10px;padding:.65rem .75rem;margin-bottom:.6rem;transition:box-shadow .25s,border-color .25s}
+.zone.focus{border-color:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
+.zone-h{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;margin-bottom:.4rem}
+.zone-h b{font-size:.98rem} .zone-h span{font-size:.76rem;color:var(--muted);text-align:right}
+#zMeta{border-left:5px solid var(--hive)} #zWh{border-left:5px solid var(--hdfs)} #zJob{border-left:5px solid var(--yarn)}
+.machine-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:.7rem}
+.mini-h{font-size:.8rem;font-weight:700;margin:.1rem 0 .25rem}
+.fs{font-size:.8rem;line-height:1.45;font-family:'Ubuntu Mono',ui-monospace,Menlo,Consolas,monospace;max-height:160px;overflow:auto;background:#F7F9FA;border:1px solid var(--rule);border-radius:6px;padding:.35rem .5rem}
+.fs .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fs .d{font-weight:700} .fs .new{background:#FFF4C2;border-radius:3px}
+.fs .cwd{font-family:'Ubuntu',sans-serif;font-size:.64rem;font-weight:700;border-radius:3px;padding:0 4px;margin-left:4px;color:#fff;background:var(--ink)}
+.fs .warnb{font-family:'Ubuntu',sans-serif;font-size:.64rem;font-weight:700;border-radius:3px;padding:0 4px;margin-left:4px;color:var(--hive);border:1px solid var(--hive)}
+.procs{display:flex;flex-direction:column;gap:.25rem}
+.proc{border:1.5px solid var(--rule);border-left:4px solid #E76F00;border-radius:6px;padding:.18rem .45rem;font-size:.76rem;line-height:1.3}
+.proc b{font-size:.78rem} .proc small{display:block;color:var(--muted);font-size:.68rem}
+.proc.job{border-left-color:var(--yarn);background:var(--yarn-soft)}
+.none{color:var(--muted);font-size:.82rem;font-style:italic}
+.tcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:.4rem}
+.tcard{border:1.5px solid var(--rule);border-radius:7px;padding:.35rem .5rem;font-size:.74rem;background:#fff}
+.tcard b{font-size:.84rem}
+.tcard .ty{display:inline-block;font-size:.62rem;font-weight:700;border-radius:3px;padding:0 5px;margin-left:4px;vertical-align:1px}
+.ty.ext{background:var(--hdfs-soft);color:var(--hdfs);border:1px solid var(--hdfs)} .ty.man{background:var(--hive-soft);color:#8A5A0F;border:1px solid var(--hive)}
+.tcard .loc{font-family:'Ubuntu Mono',monospace;color:var(--muted);font-size:.72rem;word-break:break-all}
+.tcard.gone{opacity:.35;text-decoration:line-through}
+.lockbar{font-size:.74rem;margin-bottom:.35rem;padding:.2rem .45rem;border-radius:5px;background:#F7F9FA;border:1px dashed var(--rule)}
+.lockbar.locked{border-color:var(--hive);background:var(--hive-soft)}
+.area{border:1.5px solid var(--rule);border-radius:7px;padding:.35rem .5rem;margin-bottom:.4rem}
+.area .ah{font-size:.76rem;font-weight:700;display:flex;justify-content:space-between;gap:.4rem}
+.area .ah small{font-weight:400;color:var(--muted)}
+.filebox{display:inline-block;border:1.5px solid var(--hdfs);background:var(--hdfs-soft);border-radius:4px;padding:1px 6px;font-size:.72rem;margin:.2rem .2rem 0 0;font-family:'Ubuntu Mono',monospace}
+.filebox.read{background:var(--hdfs);color:#fff}
+.tiles{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin-top:.25rem}
+.tile{border:1.5px solid var(--hive);border-radius:4px;padding:1px 2px;font-size:.6rem;text-align:center;line-height:1.2;background:#fff;font-variant-numeric:tabular-nums}
+.tile b{display:block;font-size:.66rem}
+.tile.read{background:var(--hdfs);border-color:var(--hdfs);color:#fff}
+.tile.skip{background:repeating-linear-gradient(-45deg,#F0F2F4 0 4px,#fff 4px 8px);color:#9AA5AF;border-color:#D3D9DF}
+.tile.odd{border-style:dashed}
+.bk{display:grid;grid-template-columns:repeat(8,1fr);gap:1px;margin-top:1px}
+.bk i{height:4px;background:#E8D3A6;border-radius:1px}
+.bk i.s{background:var(--hdfs)}
+.jobbox{border:1.5px solid var(--yarn);border-radius:7px;padding:.4rem .55rem;font-size:.78rem}
+.jobbox .q{font-family:'Ubuntu Mono',monospace;font-size:.78rem;color:var(--ink);white-space:pre-wrap;max-height:64px;overflow:hidden}
+.pb{display:grid;grid-template-columns:60px 1fr 40px;gap:.4rem;align-items:center;margin-top:.25rem;font-size:.72rem}
+.pb .bar{height:9px;background:#ECE7F7;border-radius:5px;overflow:hidden}
+.pb .bar i{display:block;height:100%;background:var(--yarn)}
+table.res{width:100%;font-size:.76rem;border-collapse:collapse;margin-top:.4rem}
+table.res th{border-bottom:2px solid var(--ink);padding:.15rem .3rem;text-align:left;font-weight:700}
+table.res td{border-bottom:1px dashed var(--rule);padding:.2rem .3rem;vertical-align:top;font-variant-numeric:tabular-nums}
+.tb{height:9px;border-radius:3px;margin-top:2px;background:var(--yarn)}
+.sizes{display:grid;grid-template-columns:90px 1fr 70px;gap:.3rem .5rem;align-items:center;font-size:.76rem;margin-top:.3rem}
+.sizes .b{height:14px;border-radius:3px}
+
+.concl{padding:3rem 0 2rem;border-top:1px solid var(--rule);margin-top:2.5rem}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{padding:.45rem 0 .45rem 2rem;position:relative;border-bottom:1px dashed var(--rule)}
+.checklist li::before{content:"";position:absolute;left:0;top:.55rem;width:20px;height:20px;border:2px solid var(--rule);border-radius:5px;background:#fff}
+.checklist li.got::before{border-color:var(--ok);background:var(--ok)}
+.checklist li.got::after{content:"✓";position:absolute;left:5px;top:.42rem;color:#fff;font-weight:700;font-size:.85rem}
+.checklist small{display:block;color:var(--muted)}
+.lessons{counter-reset:l;list-style:none;padding:0;margin:0}
+.lessons li{counter-increment:l;padding:.5rem 0 .5rem 2.3rem;position:relative;border-bottom:1px dashed var(--rule)}
+.lessons li::before{content:counter(l);position:absolute;left:0;top:.45rem;width:1.7rem;height:1.7rem;border-radius:50%;background:var(--ink);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:.85rem}
+footer{border-top:1px solid var(--rule);padding:1.5rem 0 2.5rem;color:var(--muted);font-size:.88rem}
+#flight{position:fixed;inset:0;pointer-events:none;z-index:2000}
+.dot{position:absolute;left:0;top:0;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:2px}
+@media (max-width: 991.98px){ .sys{position:static;max-height:none} .machine-grid,.twocol{grid-template-columns:1fr} .cabinet{grid-template-columns:repeat(7,minmax(0,1fr))} }
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} .drawer{transition:none} }
+</style>
+</head>
+<body>
+<div id="flight" aria-hidden="true"></div>
+<nav class="topnav sticky-top">
+  <div class="container-xxl d-flex flex-wrap justify-content-between align-items-center py-2 gap-2">
+    <a class="brand" href="#top">Hive warehouse, step by step</a>
+    <div class="nav">
+      <a class="nav-link" href="#ideas">Explained simply</a>
+      <a class="nav-link" href="#sim">Simulator</a>
+      <a class="nav-link" href="#conclusion">What the lab teaches</a>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+<header class="hero">
+  <div class="container-xxl">
+    <h1>Turn a pile of JSON into a warehouse you can ask questions of.</h1>
+    <p class="lead-text mt-3">In this lab you put Apache Hive on top of the two million events from lab 3.1. You will give the data table names, split it into one folder per day so questions about one day read one folder, store it in a smaller, faster format, and finally ask a real security question. First the ideas in plain words, then every command in a simulator.</p>
+    <div class="cabinet" id="cabinet" aria-hidden="true"></div>
+    <p class="cab-cap">Each drawer is one day of events (one <strong>partition</strong>). A question about 5 August opens one drawer instead of all twenty. That one trick is the biggest speed-up in a warehouse.</p>
+  </div>
+</header>
+
+<section id="ideas" class="py-4">
+  <div class="container-xxl">
+    <h2 class="mb-1">Explained simply</h2>
+    <p class="muted mb-3">Read these nine ideas before the simulator. Each one is used in a step of the lab.</p>
+    <div class="ideas">
+      <div class="idea">
+        <h3><span class="num">1</span>What is a data warehouse?</h3>
+        <p>A place where data is kept and organised for <strong>asking questions about the past</strong>: "which host moved the most data last week?" It is different from the database behind an app, which is organised for quickly saving and reading one record at a time.</p>
+        <p class="eg">Think of it as a well-organised archive room, not the cash register.</p>
+      </div>
+      <div class="idea">
+        <h3><span class="num">2</span>What is Hive?</h3>
+        <p>Hive lets you write <strong>SQL</strong> against files that sit in HDFS. It translates each query into a <strong>MapReduce job</strong>, which YARN runs on the cluster, and the job reads the files.</p>
+        <div class="vis flowv"><span class="h">your SQL</span><b>›</b><span class="h">Hive</span><b>›</b><span class="y">MapReduce job on YARN</span><b>›</b><span class="d">files in HDFS</span></div>
+        <p class="eg">That is why even a small query takes 15 to 20 seconds in the lab: starting a job has a fixed cost.</p>
+      </div>
+      <div class="idea">
+        <h3><span class="num">3</span>The metastore: Hive's catalogue</h3>
+        <p>Hive keeps a list of every table: its name, columns, file format and where its files are. That list is the <strong>metastore</strong>. In the lab it is a small Derby database in a folder called <code>metastore_db</code>.</p>
+        <p class="eg">Derby allows one user at a time, and it lives in the folder where you started Hive. Start Hive from a different folder and you get a new, empty catalogue. Always start from <code>/opt/hive</code>.</p>
+      </div>
+      <div class="idea">
+        <h3><span class="num">4</span>Schema on read</h3>
+        <p>A normal database checks your data when you load it (<strong>schema on write</strong>). Hive does not check anything at load time. It applies the column names and types <strong>when you read</strong>. If a field is missing or the wrong type, you simply get <code>NULL</code> in the result.</p>
+        <p class="eg">Loading is instant and free, but nobody stops bad data getting in. Data quality becomes your job.</p>
+      </div>
+      <div class="idea">
+        <h3><span class="num">5</span>Managed and external tables</h3>
+        <div class="vis twocol"><div><div class="t">Managed</div>Hive owns the files, in its warehouse folder. <strong>DROP deletes the data.</strong></div><div><div class="t">External</div>Hive only points at files that live elsewhere. <strong>DROP deletes only the definition.</strong></div></div>
+        <p class="eg">Rule: if you did not create the files with Hive, the table must be EXTERNAL.</p>
+      </div>
+      <div class="idea">
+        <h3><span class="num">6</span>Partitions are folders</h3>
+        <p>A partitioned table stores each value of a column in its own folder, for example <code>event_date=2026-08-05/</code>. The date is not even stored inside the files; it is the folder name. A query that filters on the date reads only the matching folder: <strong>partition pruning</strong>.</p>
+        <p class="eg">Partition by what you filter on (almost always a date) and never by something with thousands of values, like an IP address.</p>
+      </div>
+      <div class="idea">
+        <h3><span class="num">7</span>Buckets are boxes inside a folder</h3>
+        <p>Bucketing splits each partition into a fixed number of files by a hash of a column. Here, 16 files by host: every host always lands in the same file.</p>
+        <div class="vis bucketv"><i>1</i><i>2</i><i>3</i><i>4</i><i>5</i><i>6</i><i>7</i><i>8</i><i>9</i><i>10</i><i>11</i><i>12</i><i>13</i><i>14</i><i>15</i><i>16</i></div>
+        <p class="eg">Useful for two things only: sampling ("give me 1 of 16 boxes") and joining two tables bucketed the same way.</p>
+      </div>
+      <div class="idea">
+        <h3><span class="num">8</span>Row files and column files</h3>
+        <div class="vis twocol">
+          <div><div class="t">JSON (by row)</div>To add up one column, read every whole row.<div class="gridv"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div></div>
+          <div><div class="t">Parquet (by column)</div>Read only the column you need.<div class="gridv"><i></i><i></i><i class="on"></i><i></i><i></i><i></i><i class="on"></i><i></i><i></i><i></i><i class="on"></i><i></i></div></div>
+        </div>
+        <p class="eg">Parquet also compresses well, because similar values sit next to each other.</p>
+      </div>
+      <div class="idea">
+        <h3><span class="num">9</span>Window functions</h3>
+        <p>A window function compares each row with a group of related rows, <strong>without collapsing them</strong> the way GROUP BY does. In step 10 each host's day is compared with that same host's average day.</p>
+        <table class="wtab"><tr><th>host</th><th>day</th><th>bytes</th><th>host's avg</th></tr><tr><td>host042</td><td>08-11</td><td>128 M</td><td>143 M</td></tr><tr class="hl"><td>host042</td><td>08-12</td><td>389 M</td><td>143 M</td></tr><tr><td>host042</td><td>08-13</td><td>131 M</td><td>143 M</td></tr></table>
+        <p class="eg mt-2">"Unusual for this host" catches more than "biggest host overall".</p>
+      </div>
+    </div>
+    <h3 class="mt-4 mb-2">Words you will meet</h3>
+    <dl class="gloss">
+      <div><dt>HDFS</dt><dd>Hadoop's distributed file system, where events.json and all table files live.</dd></div>
+      <div><dt>YARN</dt><dd>Hadoop's job manager. It runs the MapReduce jobs Hive creates. Its web page is on port 8088.</dd></div>
+      <div><dt>MapReduce</dt><dd>The engine Hive uses here: mappers read and filter file pieces in parallel, reducers combine their results.</dd></div>
+      <div><dt>SerDe</dt><dd>Serializer/Deserializer: the plug-in that turns a file's bytes into columns, here JSON into columns.</dd></div>
+      <div><dt>CTAS</dt><dd>CREATE TABLE … AS SELECT: make a new table and fill it from a query in one statement.</dd></div>
+      <div><dt>EXPLAIN</dt><dd>Shows Hive's plan for a query without running it: which folders it will read, and how.</dd></div>
+      <div><dt>Parquet</dt><dd>A column-oriented file format: smaller files, and fast when a query needs few columns.</dd></div>
+      <div><dt>Derby</dt><dd>A tiny database embedded in Hive for the lab's metastore. One connection at a time.</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section id="sim" class="pt-3">
+  <div class="container-xxl">
+    <h2 class="mb-1">The simulator</h2>
+    <p class="muted mb-2">Press <strong>Run</strong> on each command in order. Under every command you get a plain-language explanation, what changed, how long it takes on the VM, and a red note where the lab sheet needs a fix. The right side shows the machine, Hive's catalogue, the files in HDFS, and the job YARN is running.</p>
+    <div class="rail" id="rail" role="tablist" aria-label="Lab steps"></div>
+    <div class="row g-3 mt-1">
+      <div class="col-lg-6">
+        <div id="stepPane"></div>
+        <div class="term-wrap mt-2">
+          <div class="term-tabs" id="termTabs"></div>
+          <pre class="term-body" id="termBody" aria-live="polite" tabindex="0"></pre>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="sys" id="sys">
+          <div class="statusbar" id="statusbar"></div>
+          <div class="zone" id="zMachine"><div class="zone-h"><b>The machine (ubuntuOS)</b><span>local folders and Java processes</span></div><div id="machine"></div></div>
+          <div class="zone" id="zMeta"><div class="zone-h"><b>Hive metastore: the catalogue</b><span id="metaState"></span></div><div id="meta"></div></div>
+          <div class="zone" id="zWh"><div class="zone-h"><b>HDFS: where the files really are</b><span>blue = read by the last query, striped = skipped</span></div><div id="wh"></div></div>
+          <div class="zone" id="zJob"><div class="zone-h"><b>The job on YARN and the results</b><span id="jobState"></span></div><div id="job"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="concl" id="conclusion">
+  <div class="container-xxl">
+    <h2 class="mb-3">What this lab teaches</h2>
+    <div class="row g-4">
+      <div class="col-lg-7">
+        <ol class="lessons">
+          <li><strong>A Hive table is a description of files.</strong> The metastore holds the description; HDFS holds the files. Creating a table checks nothing, so wrong data shows up later as NULLs (schema on read).</li>
+          <li><strong>EXTERNAL for data you did not create.</strong> Dropping the managed table deleted its folder. Dropping the external table left events.json untouched. Getting this wrong on shared data deletes it for everyone.</li>
+          <li><strong>Partitions are folders, and pruning is reading fewer folders.</strong> A filter on <code>event_date</code> read 1 of 21 folders; a filter on <code>host</code> had to read all 21. Partition on what you filter by.</li>
+          <li><strong>Read the plan, do not assume.</strong> EXPLAIN EXTENDED lists the exact folders a query will read. One path means pruning worked.</li>
+          <li><strong>Column formats pay off twice.</strong> Parquet was about a third of the JSON size, and summing one column was about twice as fast, with the same answer. With Snappy compression it would be smaller still.</li>
+          <li><strong>Bucketing has two uses.</strong> Sampling by host, and joins between tables bucketed the same way. Otherwise it is extra complexity.</li>
+          <li><strong>Window functions build baselines.</strong> Comparing each host with its own history finds "unusual for this host", which is what behavioural detection needs. On random test data there may be nothing unusual to find, and that is a correct answer.</li>
+          <li><strong>One catalogue, many engines.</strong> Spark SQL read the same tables through the same metastore without redefining anything.</li>
+        </ol>
+      </div>
+      <div class="col-lg-5">
+        <div class="panel">
+          <div class="panel-title">Your deliverable, collected as you run the simulator</div>
+          <ul class="checklist" id="checklist">
+            <li data-k="create">CREATE TABLE statements<small>steps 2, 5 and 9</small></li>
+            <li data-k="parts">SHOW PARTITIONS output<small>step 5</small></li>
+            <li data-k="explain">EXPLAIN extract proving pruning<small>step 6: one path against twenty-one</small></li>
+            <li data-k="sizes">Size and timing, JSON against Parquet<small>step 8: four numbers</small></li>
+            <li data-k="window">Window-function result<small>step 10</small></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+<footer><div class="container-xxl">Big Data Analytics, Lab 3.2: Implementing Data Warehousing Solutions. Counts, sums and sizes come from a real run of the lab 3.1 generator; job IDs, PIDs and timings are representative and will differ on your VM.</div></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+(function(){
+"use strict";
+const $=(s,r=document)=>r.querySelector(s);
+const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const hasGsap=typeof window.gsap!=='undefined';
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const HOME='/home/hadoop';
+const DAYS=[['2026-08-01',100121],['2026-08-02',100370],['2026-08-03',99571],['2026-08-04',100830],['2026-08-05',99634],['2026-08-06',100290],['2026-08-07',99850],['2026-08-08',99913],['2026-08-09',99913],['2026-08-10',100522],['2026-08-11',100249],['2026-08-12',99738],['2026-08-13',99825],['2026-08-14',99960],['2026-08-15',99957],['2026-08-16',100319],['2026-08-17',99666],['2026-08-18',100087],['2026-08-19',99631],['2026-08-20',99553],['2026-08-21',1]];
+const JSON_BYTES=340336945, PARQ_BYTES=101987112, TOTAL_SUM='500228176370';
+const mb=b=>(b/1048576).toFixed(1)+' M';
+const partBytes=n=>Math.max(2100,Math.round(PARQ_BYTES*n/2000000));
+let fastMode=false;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const wait=ms=>fastMode?Promise.resolve():sleep(ms);
+
+/* cabinet animation in the hero */
+(function cab(){ const c=$('#cabinet'); c.innerHTML=DAYS.slice(0,20).map(d=>`<div class="drawer">${d[0].slice(5)}</div>`).join(''); if(reduceMotion){ c.children[4].classList.add('open'); return; } let i=0; setInterval(()=>{ [...c.children].forEach(x=>x.classList.remove('open')); c.children[[4,4,11,4,17][i++%5]].classList.add('open'); },1800); })();
+
+/* ================= state ================= */
+const S={busy:false,mode:'shell',cwd:HOME,lines:[],
+  fs:new Map(),fresh:new Set(),procs:[],pid:5200,
+  hdfs:false,yarn:false,hiveInstalled:false,metastore:false,session:false,spark:false,
+  jarAdded:false,settings:{},
+  tables:{}, managedDir:null, lastRead:null, job:null, results:[], sizes:{}, windowRows:null, injected:false,
+  evidence:{}
+};
+function addFs(path,type,note){ const parts=path.split('/'); for(let i=2;i<parts.length;i++){ const pre=parts.slice(0,i).join('/'); if(pre!=='/home'&&!S.fs.has(pre)) S.fs.set(pre,{type:'dir'}); } if(!S.fs.has(path)){ S.fresh.add(path); setTimeout(()=>S.fresh.delete(path),4000); } S.fs.set(path,{type,note}); }
+function rmFs(path){ [...S.fs.keys()].forEach(k=>{ if(k===path||k.startsWith(path+'/')) S.fs.delete(k); }); }
+['/opt','/opt/hadoop','/opt/spark','/tmp',HOME].forEach(p=>S.fs.set(p,{type:'dir'})); S.fs.set('/opt/hadoop/share/hadoop/common/lib/guava-27.0-jre.jar',{type:'file'}); S.fresh.clear();
+function newPid(){ S.pid+=rnd(9,230); return S.pid; }
+function addProc(key,name,note,job){ S.procs=S.procs.filter(p=>p.key!==key); S.procs.push({key,name,note,pid:newPid(),job}); }
+function rmProc(key){ S.procs=S.procs.filter(p=>p.key!==key); }
+
+/* ================= terminal ================= */
+let termDirty=true;
+function tpush(html){ S.lines.push(html); if(S.lines.length>600) S.lines.splice(0,S.lines.length-600); termDirty=true; }
+function out(text,cls){ String(text).split('\n').forEach(l=>tpush(cls?`<span class="${cls}">${esc(l)}</span>`:esc(l))); }
+function prompt(){ if(S.mode==='hive') return '<span class="pr">hive&gt; </span>'; if(S.mode==='spark') return ''; const c=S.cwd===HOME?'~':S.cwd.startsWith(HOME+'/')?'~'+S.cwd.slice(HOME.length):S.cwd; return `<span class="pr">hadoop@ubuntuOS</span>:<span class="pa">${esc(c)}</span>$ `; }
+function echo(code){ code.split('\n').forEach((l,i)=>tpush((i===0?prompt():(S.mode==='hive'?'<span class="pr">    &gt; </span>':'<span class="dim">&gt; </span>'))+esc(l))); }
+function renderTerm(){
+  $('#termTabs').innerHTML=`<button class="on"><span class="dot ${S.mode==='hive'?'hive':S.mode==='busy'?'busy':''}"></span>Terminal: ${S.mode==='hive'?'Hive CLI':S.mode==='busy'?'running…':'bash'}</button>`;
+  const b=$('#termBody'), atB=b.scrollHeight-b.scrollTop-b.clientHeight<40;
+  b.innerHTML=S.lines.join('\n')+(S.mode==='busy'?'':'\n'+prompt());
+  if(atB||jump){ b.scrollTop=b.scrollHeight; jump=false; } termDirty=false;
+}
+let jump=false;
+function fly(fromEl,toEl,color,n=1){ if(fastMode||!fromEl||!toEl||reduceMotion||!hasGsap) return; for(let k=0;k<n;k++) setTimeout(()=>{ const a=fromEl.getBoundingClientRect(), b=toEl.getBoundingClientRect(); if(a.bottom<0||a.top>innerHeight||b.bottom<0||b.top>innerHeight) return; const d=document.createElement('div'); d.className='dot'; d.style.background=color; $('#flight').appendChild(d); gsap.fromTo(d,{x:a.left+a.width/2,y:a.top+a.height/2},{x:b.left+b.width/2+rnd(-30,30),y:b.top+b.height/2,duration:.6,ease:'power1.inOut',onComplete:()=>d.remove()}); },k*110); }
+
+/* ================= MapReduce job imitation ================= */
+let jobSeq=1;
+function uuid(){ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&3|8)).toString(16);}); }
+const appBase='1790563412345';
+function hiveTime(){ const d=new Date(); return `2026-09-28 ${d.toTimeString().slice(0,8)},${String(rnd(0,999)).padStart(3,'0')}`; }
+async function mrJob({label,maps,reduces,secs,read,write,parts,result,stats}){
+  const id=String(jobSeq++).padStart(4,'0'), job=`job_${appBase}_${id}`;
+  out(`Query ID = hadoop_20260928${String(rnd(100000,235959))}_${Math.random().toString(16).slice(2,10)}\nTotal jobs = 1\nLaunching Job 1 out of 1`);
+  if(reduces) out(`Number of reduce tasks ${reduces===1?'determined at compile time: 1':'not specified. Estimated from input data size: '+reduces}`); else out('Number of reduce tasks is set to 0 since there\'s no reduce operator');
+  out(`Starting Job = ${job}, Tracking URL = http://ubuntuOS:8088/proxy/application_${appBase}_${id}/\nKill Command = /opt/hadoop/bin/mapred job  -kill ${job}`);
+  S.job={label,maps,reduces,map:0,red:0,active:true,read,secs}; S.lastRead=parts||S.lastRead;
+  addProc('am','MRAppMaster','runs this job for YARN',true); addProc('yc','YarnChild × '+Math.min(maps,4),'map and reduce tasks',true);
+  S.mode='busy'; renderAll();
+  out(`Hadoop job information for Stage-1: number of mappers: ${maps}; number of reducers: ${reduces}`);
+  const steps=reduces?[[0,0],[33,0],[67,0],[100,0],[100,67],[100,100]]:[[0,0],[33,0],[67,0],[100,0]];
+  for(const [m,r] of steps){ S.job.map=m; S.job.red=r; out(`${hiveTime()} Stage-1 map = ${m}%,  reduce = ${r}%${m||r?`, Cumulative CPU ${(secs*0.6*(m+r)/(reduces?200:100)).toFixed(2)} sec`:''}`); fly($('#zWh .area:last-child')||$('#zWh'),$('#zJob'),'var(--yarn)',2); renderAll(); await wait(450); }
+  out(`MapReduce Total cumulative CPU time: ${Math.round(secs*0.6)} seconds ${rnd(10,990)} msec\nEnded Job = ${job}`);
+  if(stats) out(stats);
+  out(`MapReduce Jobs Launched: \nStage-Stage-1: Map: ${maps}${reduces?'  Reduce: '+reduces:''}   Cumulative CPU: ${(secs*0.6).toFixed(2)} sec   HDFS Read: ${read} HDFS Write: ${write} SUCCESS\nTotal MapReduce CPU Time Spent: ${Math.round(secs*0.6)} seconds ${rnd(10,990)} msec\nOK`);
+  if(result!=null) out(result);
+  S.job.active=false; rmProc('am'); rmProc('yc'); S.mode='hive';
+}
+function timeTaken(secs,rows){ out(`Time taken: ${secs.toFixed(3)} seconds${rows!=null?`, Fetched: ${rows} row(s)`:''}`); }
+
+/* ================= rendering ================= */
+function renderAll(){
+  const sv=(on,l)=>`<span class="svc ${on?'on':''}">${l}</span>`;
+  $('#statusbar').innerHTML='Running: '+sv(S.hdfs,'HDFS')+sv(S.yarn,'YARN')+sv(S.session,'Hive CLI')+sv(S.spark,'Spark SQL')+(S.job&&S.job.active?'<span class="svc on">MapReduce job</span>':'');
+  // machine
+  const paths=[...S.fs.keys()].sort((a,b)=>a.localeCompare(b));
+  const fs=paths.map(p=>{ const n=S.fs.get(p), depth=p.split('/').length-2, name=p===HOME?'/home/hadoop':p.slice(p.lastIndexOf('/')+1)||'/'; let h=`<span class="${n.type==='dir'?'d':''} ${S.fresh.has(p)?'new':''}">${esc(name)}${n.type==='dir'?'/':''}${p===HOME?' (~)':''}</span>`; if(n.note) h+=`<span class="warnb">${n.note}</span>`; if(p===S.cwd&&S.mode!=='hive') h+='<span class="cwd">you are here</span>'; if(p===S.cwd&&S.mode==='hive') h+='<span class="cwd">Hive started here</span>'; return `<div class="n" style="padding-left:${Math.max(0,depth)*12}px">${h}</div>`; }).join('');
+  const pr=S.procs.length?S.procs.map(p=>`<div class="proc ${p.job?'job':''}"><b>${esc(p.name)}</b><small>PID ${p.pid}${p.note?', '+esc(p.note):''}</small></div>`).join(''):'<div class="none">No Hadoop or Hive processes yet.</div>';
+  $('#machine').innerHTML=`<div class="machine-grid"><div><div class="mini-h">Local folders</div><div class="fs">${fs}</div></div><div><div class="mini-h">Java processes (what <code>jps</code> lists)</div><div class="procs">${pr}</div></div></div>`;
+  // metastore
+  $('#metaState').textContent=S.metastore?'Derby database in /opt/hive/metastore_db':'not created yet';
+  let m='';
+  if(!S.metastore) m='<div class="none">The catalogue is created in step 1 with schematool.</div>';
+  else{
+    m+=`<div class="lockbar ${S.session||S.spark?'locked':''}">${S.session?'🔒 In use by the Hive CLI. Embedded Derby allows one connection, so Spark cannot open it now.':S.spark?'🔒 In use by spark-sql.':'Free: nobody has the catalogue open.'}</div>`;
+    const tl=Object.values(S.tables);
+    m+=`<div class="mini-h">Databases: default${S.bda?', bda':''}</div>`;
+    m+=tl.length?'<div class="tcards">'+tl.map(t=>`<div class="tcard ${t.gone?'gone':''}"><b>${t.name}</b><span class="ty ${t.ext?'ext':'man'}">${t.ext?'EXTERNAL':'MANAGED'}</span><br>${t.fmt}${t.parts?', '+t.parts+' partitions':''}${t.buckets?', '+t.buckets+' buckets each':''}<div class="loc">${esc(t.loc)}</div></div>`).join('')+'</div>':'<div class="none">No tables yet.</div>';
+  }
+  $('#meta').innerHTML=m;
+  // HDFS
+  let w='';
+  if(!S.hdfs && !S.metastore) w='<div class="none">HDFS starts in step 1. events.json from lab 3.1 is already stored in it.</div>';
+  else{
+    const lr=S.lastRead;
+    w+=`<div class="area"><div class="ah">/user/hadoop/lab3/ <small>landing area: lab 3.1 put the file here, Hive did not</small></div><span class="filebox ${lr&&lr.raw?'read':''}">events.json, ${mb(JSON_BYTES)}</span></div>`;
+    w+=`<div class="area"><div class="ah">/user/hive/warehouse/bda.db/ <small>Hive's own area: managed tables live here</small></div>`;
+    const wt=Object.values(S.tables).filter(t=>!t.ext&&!t.gone);
+    if(!wt.length) w+='<div class="none">empty</div>';
+    wt.forEach(t=>{
+      w+=`<div class="mini-h mt-1">${t.name}/ ${t.sizeLabel?'<span class="muted" style="font-weight:400">'+t.sizeLabel+'</span>':''}</div>`;
+      if(!t.parts){ w+=(t.files||[]).map(f=>`<span class="filebox">${f}</span>`).join(''); return; }
+      w+='<div class="tiles">'+DAYS.slice(0,t.parts).map(([d,n])=>{ let cls=''; if(lr&&lr.table===t.name) cls=lr.parts==='all'||lr.parts.includes(d)?'read':'skip'; if(d==='2026-08-21') cls+=' odd';
+        const bk=t.buckets?`<div class="bk">${[...Array(16)].map((_,i)=>`<i class="${lr&&lr.table===t.name&&lr.bucket&&i===0?'s':''}"></i>`).join('')}</div>`:'';
+        return `<div class="tile ${cls}" title="event_date=${d}: ${n.toLocaleString()} rows"><b>${d.slice(5)}</b>${n>1000?(n/1000).toFixed(1)+'k':n}${bk}</div>`; }).join('')+'</div>';
+    });
+    w+='</div>';
+  }
+  $('#wh').innerHTML=w;
+  // job
+  let j='';
+  const J=S.job;
+  $('#jobState').textContent=S.yarn?'ResourceManager on :8088':'';
+  if(J){ j+=`<div class="jobbox"><div class="mini-h" style="color:var(--yarn)">${J.active?'Running now':'Last job'}: ${J.maps} mapper${J.maps>1?'s':''}, ${J.reduces} reducer${J.reduces===1?'':'s'}</div><div class="q">${esc(J.label)}</div><div class="pb"><span>map</span><div class="bar"><i style="width:${J.map}%"></i></div><span>${J.map}%</span></div><div class="pb"><span>reduce</span><div class="bar"><i style="width:${J.reduces?J.red:0}%"></i></div><span>${J.reduces?J.red+'%':'none'}</span></div></div>`; }
+  if(S.results.length){ const mx=Math.max(...S.results.map(r=>r.secs)); j+=`<table class="res"><tr><th>Query</th><th>Read</th><th>Time on VM</th><th>Answer</th></tr>${S.results.map(r=>`<tr><td>${r.label}</td><td>${r.read}</td><td>${r.secs.toFixed(1)} s<div class="tb" style="width:${Math.max(4,r.secs/mx*90)}px"></div></td><td>${r.ans}</td></tr>`).join('')}</table><div class="muted" style="font-size:.72rem;margin-top:.25rem">About 15 s of every MapReduce query is the fixed cost of starting a job, so differences look smaller than the data read suggests.</div>`; }
+  if(S.sizes.json&&S.sizes.parq){ j+=`<div class="mini-h mt-2">Same data, two formats</div><div class="sizes"><span>JSON text</span><div class="b" style="background:var(--hdfs);width:100%"></div><span>${mb(S.sizes.json)}</span><span>Parquet</span><div class="b" style="background:var(--hive);width:${S.sizes.parq/S.sizes.json*100}%"></div><span>${mb(S.sizes.parq)}</span></div>`; }
+  if(S.windowRows){ j+=`<div class="mini-h mt-2">Step 10 result</div>`+(S.windowRows.length?`<table class="res"><tr><th>host</th><th>busiest day</th><th>daily_bytes</th><th>own average</th></tr>${S.windowRows.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${Number(r[2]).toLocaleString()}</td><td>${Math.round(r[3]).toLocaleString()}</td></tr>`).join('')}</table>`:'<div class="none">0 rows: no host had a day 1.5 times its own average.</div>'); }
+  if(!j) j='<div class="none">Jobs appear here from step 2.</div>';
+  $('#job').innerHTML=j;
+  document.querySelectorAll('#checklist li').forEach(li=>li.classList.toggle('got',!!S.evidence[li.dataset.k]));
+  if(termDirty) renderTerm();
+}
+setInterval(()=>{ if(!fastMode) renderAll(); },400);
+
+/* ================= statements ================= */
+const CREATE_RAW="CREATE EXTERNAL TABLE events_raw (\n  event_id   BIGINT,\n  event_time STRING,\n  event_date STRING,\n  host       STRING,\n  action     STRING,\n  bytes      BIGINT,\n  src_ip     STRING\n)\nROW FORMAT SERDE 'org.apache.hive.hcatalog.data.JsonSerDe'\nSTORED AS TEXTFILE\nLOCATION '/user/${env:USER}/lab3/';";
+const HEAD5=[[0,'2026-08-08 20:38:46','2026-08-08','host038','port_scan',341377,'10.0.24.19'],[1,'2026-08-20 22:25:37','2026-08-20','host137','login_ok',191826,'10.0.29.233'],[2,'2026-08-13 07:36:09','2026-08-13','host054','login_ok',45161,'10.0.222.108'],[3,'2026-08-02 16:41:37','2026-08-02','host061','login_ok',289007,'10.0.217.16'],[4,'2026-08-14 17:24:02','2026-08-14','host031','login_failed',330729,'10.0.31.148']];
+function hdr(cols){ if(S.settings.header) out(cols.join('\t')); }
+function addRaw(){ S.tables.events_raw={name:'events_raw',ext:true,fmt:'JSON text (JsonSerDe)',loc:'hdfs://localhost:9000/user/hadoop/lab3'}; S.evidence.create=S.evidence.create||false; }
+const C=o=>o;
+
+const STEPS=[
+ {title:'Install Hive and initialise the metastore',short:'install Hive',intro:'Download Hive, start HDFS and YARN, fix a library clash, and create Hive\'s catalogue.',
+  cmds:[
+   C({label:'Download Hive',code:'cd /tmp\nwget https://archive.apache.org/dist/hive/hive-3.1.3/apache-hive-3.1.3-bin.tar.gz',run:async()=>{ S.cwd='/tmp'; out('--2026-09-28 10:50:02--  https://archive.apache.org/dist/hive/hive-3.1.3/apache-hive-3.1.3-bin.tar.gz\nResolving archive.apache.org (archive.apache.org)... 65.108.204.189\nHTTP request sent, awaiting response... 200 OK\nLength: 326940667 (312M) [application/x-gzip]\nSaving to: ‘apache-hive-3.1.3-bin.tar.gz’'); S.mode='busy'; for(let i=1;i<=4;i++){ await wait(350); out(`apache-hive-3.1.3-bin.tar.gz  ${i*25}%[${'='.repeat(i*5).padEnd(20)}]`); } S.mode='shell'; addFs('/tmp/apache-hive-3.1.3-bin.tar.gz','file'); },
+     simple:'Downloads the Hive program as one compressed file into the /tmp folder.',what:'<code>cd /tmp</code> moves into a scratch folder; <code>wget</code> downloads a file from a web address.',see:'The archive appears in /tmp.',vm:'about a minute'}),
+   C({label:'Unpack it into /opt/hive',code:'sudo tar -xzf apache-hive-3.1.3-bin.tar.gz -C /opt\nsudo mv /opt/apache-hive-3.1.3-bin /opt/hive && sudo chown -R $USER:$USER /opt/hive',run:async()=>{ await wait(700); ['/opt/hive/bin','/opt/hive/conf','/opt/hive/lib','/opt/hive/hcatalog/share/hcatalog'].forEach(p=>addFs(p,'dir')); addFs('/opt/hive/lib/guava-19.0.jar','file','old'); addFs('/opt/hive/hcatalog/share/hcatalog/hive-hcatalog-core-3.1.3.jar','file'); S.hiveInstalled=true; },
+     simple:'Unzips Hive into /opt/hive and makes you its owner, the same way Kafka and HBase were installed.',what:'<code>tar -xzf</code> extracts the archive, <code>-C /opt</code> puts it in /opt. <code>mv</code> gives the folder a short name. <code>chown</code> makes your user the owner, so Hive can write its files there without sudo.',see:'/opt/hive with bin, conf and lib. Note guava-19.0.jar in lib: it causes trouble in a moment.',vm:'about 10 seconds'}),
+   C({label:'Put Hive on the PATH',code:"echo 'export HIVE_HOME=/opt/hive' >> ~/.bashrc\necho 'export PATH=$PATH:$HIVE_HOME/bin' >> ~/.bashrc\nsource ~/.bashrc",run:()=>{},simple:'Lets you type <code>hive</code> and <code>schematool</code> from any folder.',what:'Adds two lines to the end of ~/.bashrc, the file that sets up every new terminal, and reloads it now.',see:'Nothing printed.',vm:'instant'}),
+   C({label:'Start HDFS and YARN',code:'start-dfs.sh && start-yarn.sh',run:async()=>{ out('Starting namenodes on [localhost]'); await wait(300); out('Starting datanodes'); await wait(300); out('Starting secondary namenodes [ubuntuOS]'); addProc('nn','NameNode','HDFS metadata'); addProc('dn','DataNode','HDFS blocks'); addProc('snn','SecondaryNameNode'); S.hdfs=true; renderAll(); await wait(400); out('Starting resourcemanager'); await wait(300); out('Starting nodemanagers'); addProc('rm','ResourceManager','YARN, web UI :8088'); addProc('nm','NodeManager','runs job tasks'); S.yarn=true; },
+     simple:'Turns on the file system (HDFS) and the job runner (YARN). Hive needs both: HDFS holds the data, YARN runs the jobs.',what:'<code>&amp;&amp;</code> starts YARN only if HDFS started without error.',see:'Five Java processes: three for HDFS, two for YARN.',vm:'about 30 seconds'}),
+   C({label:'Make Hive\'s folders in HDFS',code:'hdfs dfs -mkdir -p /user/hive/warehouse /tmp\nhdfs dfs -chmod g+w /user/hive/warehouse /tmp',run:()=>{},simple:'Creates the warehouse folder, where Hive will keep the tables it owns, and lets your group write to it.',what:'<code>/user/hive/warehouse</code> is Hive\'s default location for managed tables. <code>/tmp</code> in HDFS holds scratch files during jobs. <code>chmod g+w</code> adds write permission for the group.',see:'Nothing printed. The warehouse folder appears in the HDFS panel later, when a table is created in it.',vm:'about 5 seconds'}),
+   C({label:'Fix the Guava clash',code:'rm -f /opt/hive/lib/guava-*.jar\ncp $HADOOP_HOME/share/hadoop/common/lib/guava-*.jar /opt/hive/lib/',run:()=>{ S.fs.delete('/opt/hive/lib/guava-19.0.jar'); addFs('/opt/hive/lib/guava-27.0-jre.jar','file'); },
+     simple:'Hive and Hadoop each bring their own copy of a library called Guava, and the versions disagree. This replaces Hive\'s old copy with Hadoop\'s newer one.',what:'Hive 3.1.3 ships guava 19; Hadoop 3.3.6 needs guava 27 or newer. With both on the classpath, Java loads the wrong one and schematool dies with <code>NoSuchMethodError … Preconditions.checkArgument</code>. Same family of problem as the Flume Guava jar in lab 2.',see:'guava-19.0.jar is gone from /opt/hive/lib; guava-27.0-jre.jar is there instead.',vm:'instant'}),
+   C({label:'Create the metastore',code:'cd /opt/hive && schematool -dbType derby -initSchema',run:async()=>{ S.cwd='/opt/hive'; out('SLF4J: Class path contains multiple SLF4J bindings.\nSLF4J: See http://www.slf4j.org/codes.html#multiple_bindings for an explanation.\nMetastore connection URL:\t jdbc:derby:;databaseName=metastore_db;create=true\nMetastore Connection Driver :\t org.apache.derby.jdbc.EmbeddedDriver\nMetastore connection User:\t APP\nStarting metastore schema initialization to 3.1.0\nInitialization script hive-schema-3.1.0.derby.sql'); S.mode='busy'; await wait(1400); S.mode='shell'; out('\n\nInitialization script completed\nschemaTool completed'); addFs('/opt/hive/metastore_db','dir','the catalogue'); addFs('/opt/hive/derby.log','file'); S.metastore=true; },
+     simple:'Creates Hive\'s empty catalogue: a small Derby database that will remember every table you create.',what:'<code>schematool</code> creates the metastore\'s tables (for databases, tables, columns, partitions…). Derby creates its files <strong>in the current folder</strong>, which is why the command first does <code>cd /opt/hive</code>. Run it once: running it again on an existing metastore fails.',see:'"schemaTool completed", and a metastore_db folder inside /opt/hive.',vm:'about 30 seconds',
+     fix:'Remember where the catalogue is: <code>/opt/hive/metastore_db</code>. In every later session start <code>hive</code> (and <code>spark-sql</code>) from <code>/opt/hive</code>. Started anywhere else, Derby silently creates a new empty <code>metastore_db</code> there, and your <code>bda</code> database seems to have vanished.'})
+  ],take:['Hive is a program that turns SQL into jobs; it needs HDFS for files and YARN to run jobs.','The metastore is a separate little database that only stores table definitions.','Embedded Derby lives in the folder you start from, so always start Hive from /opt/hive.']},
+ {title:'Create an external table over the raw JSON',short:'external table',intro:'Point a table at the JSON already in HDFS. Nothing is copied.',
+  cmds:[
+   C({label:'Open the Hive shell',code:'hive',run:async()=>{ S.mode='busy'; await wait(900); out('Hive Session ID = '+uuid()+'\n\nLogging initialized using configuration in jar:file:/opt/hive/lib/hive-common-3.1.3.jar!/hive-log4j2.properties Async: true\nHive-on-MR is deprecated in Hive 2 and may not be available in the future versions. Consider using a different execution engine (i.e. spark, tez) or using Hive 1.X releases.','dim'); S.mode='hive'; S.session=true; addProc('hcli','RunJar (the Hive CLI)','holds the Derby catalogue open'); },
+     simple:'Starts Hive\'s command line. From now on you type SQL at the <code>hive&gt;</code> prompt, ending each statement with a semicolon.',what:'The CLI connects to the Derby catalogue in the current folder (/opt/hive) and keeps it locked while open. The warning about MapReduce being deprecated is normal: Hive 3 prefers the Tez engine, which the lab does not install.',see:'The prompt changes to hive&gt;, the catalogue shows as locked, and a RunJar process appears.',vm:'10 to 20 seconds',
+     fix:'If <code>hive</code> crashes immediately with <code>ClassCastException: … AppClassLoader cannot be cast to … URLClassLoader</code>, the cause is Java 11 (your VM\'s Java, seen in the Flume lab). Hive 3.1 only supports Java 8. Install it with <code>sudo apt install -y openjdk-8-jdk</code> and run Hive with <code>JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64</code> (also check that <code>$HADOOP_HOME/etc/hadoop/hadoop-env.sh</code> does not force Java 11).'}),
+   C({label:'Make and select the database',code:'CREATE DATABASE IF NOT EXISTS bda;\nUSE bda;',run:async()=>{ await wait(300); out('OK'); timeTaken(0.512); out('OK'); timeTaken(0.031); S.bda=true; },
+     simple:'Creates a database (a named group of tables) called bda and makes it the current one.',what:'A Hive database is a namespace in the catalogue plus a folder <code>bda.db</code> in the warehouse. <code>IF NOT EXISTS</code> makes it safe to run twice.',see:'Two OKs; bda appears in the catalogue.',vm:'about a second'}),
+   C({label:'Create the external table, as on the sheet',code:CREATE_RAW,run:async()=>{ await wait(400); out("FAILED: Execution Error, return code 1 from org.apache.hadoop.hive.ql.exec.DDLTask. Cannot validate serde: org.apache.hive.hcatalog.data.JsonSerDe",'err'); },
+     simple:'Describes the JSON file as a table with seven columns, and tells Hive where the file is. Hive will not copy or move anything.',what:'<code>EXTERNAL</code>: Hive does not own the files. <code>ROW FORMAT SERDE … JsonSerDe</code>: read each line as JSON and match keys to column names. <code>LOCATION</code>: the folder, not the file; every file in it is part of the table. Hive replaces <code>${env:USER}</code> with your username.',see:'On a standard Hive 3.1.3 install this fails, as shown.',vm:'instant',
+     fix:'The JSON SerDe lives in <code>hive-hcatalog-core-3.1.3.jar</code>, which is in <code>/opt/hive/hcatalog/share/hcatalog/</code>, not in Hive\'s <code>lib</code>, so CREATE fails with "Cannot validate serde". (The sheet says a missing jar gives all-NULL rows; in fact it stops the CREATE.) Add the jar first, as in the next command. To make it permanent, copy the jar into <code>/opt/hive/lib/</code>, or use Hive 3\'s built-in <code>org.apache.hadoop.hive.serde2.JsonSerDe</code> instead.'}),
+   C({label:'Add the JSON SerDe jar',extra:true,code:'ADD JAR /opt/hive/hcatalog/share/hcatalog/hive-hcatalog-core-3.1.3.jar;',run:()=>{ S.jarAdded=true; out('Added [/opt/hive/hcatalog/share/hcatalog/hive-hcatalog-core-3.1.3.jar] to class path\nAdded resources: [/opt/hive/hcatalog/share/hcatalog/hive-hcatalog-core-3.1.3.jar]'); },
+     simple:'Loads the missing plug-in into this Hive session.',what:'<code>ADD JAR</code> adds a jar for the current session only. Hive also ships it to the MapReduce jobs it starts, so the SerDe works inside jobs too. Close Hive and you must add it again.',see:'"Added … to class path".',vm:'instant'}),
+   C({label:'Create the external table again',extra:true,code:CREATE_RAW,run:async()=>{ await wait(400); out('OK'); timeTaken(0.874); addRaw(); S.evidence.create=true; },
+     simple:'The same statement, now that Hive can find the JSON reader.',what:'Hive writes the definition into the catalogue. It does not open events.json and does not check that the JSON matches the columns: schema on read.',see:'events_raw appears in the catalogue marked EXTERNAL, pointing at /user/hadoop/lab3. Nothing changes in HDFS.',vm:'about a second'}),
+   C({label:'Peek at five rows',code:'SELECT * FROM events_raw LIMIT 5;',run:async()=>{ await wait(600); S.lastRead={raw:true,table:'events_raw'}; out('OK'); HEAD5.forEach(r=>out(r.join('\t'))); timeTaken(1.214,5); },
+     simple:'Shows the first five rows, to check the columns came out right.',what:'Hive reads just the start of the file directly, without starting a MapReduce job (a "fetch task"), so it is quick. This is the moment schema on read happens: the JSON keys are matched to your columns as the rows are read.',see:'Seven filled columns per row. If you saw NULL everywhere, the column names would not match the JSON keys.',vm:'1 to 2 seconds'}),
+   C({label:'Count every row',code:'SELECT count(*) FROM events_raw;',run:async()=>{ await mrJob({label:'SELECT count(*) FROM events_raw',maps:3,reduces:1,secs:38.4,read:340372811,write:107,parts:{raw:true,table:'events_raw'},result:'2000000'}); timeTaken(38.412,1); S.results.push({label:'count(*) on JSON',read:'all 325 MB',secs:38.4,ans:'2,000,000'}); },
+     simple:'Counts all rows. This needs to read the whole file, so Hive starts a MapReduce job.',what:'Hive turns the query into a job: 3 mappers (one per 128 MB block of events.json) each count their part, and 1 reducer adds the three counts. Watch the map and reduce percentages, and the job on YARN\'s web page at port 8088.',see:'2000000, after about 40 seconds. The whole file is read.',vm:'30 to 60 seconds'})
+  ],take:['A table definition costs nothing and checks nothing: schema on read.','EXTERNAL plus LOCATION means "this folder is my table, but I do not own it".','Simple LIMIT queries are read directly; anything that needs all the data becomes a MapReduce job.']},
+ {title:'Prove that DROP behaves differently',short:'DROP test',intro:'Make a managed table, drop it, and check HDFS. Then drop the external table and check again.',
+  cmds:[
+   C({label:'Make a managed copy of one day',code:"CREATE TABLE events_managed AS SELECT * FROM events_raw WHERE event_date = '2026-08-01';",run:async()=>{ await mrJob({label:"CREATE TABLE events_managed AS SELECT … WHERE event_date = '2026-08-01'",maps:3,reduces:0,secs:31.2,read:340372811,write:11871203,parts:{raw:true,table:'events_raw'},stats:'Stage-4 is selected by condition resolver.\nStage-3 is filtered out by condition resolver.\nStage-5 is filtered out by condition resolver.\nMoving data to directory hdfs://localhost:9000/user/hive/warehouse/bda.db/.hive-staging_hive_2026-09-28/-ext-10002\nMoving data to directory hdfs://localhost:9000/user/hive/warehouse/bda.db/events_managed'}); timeTaken(31.207); S.tables.events_managed={name:'events_managed',ext:false,fmt:'text (Hive default)',loc:'hdfs://localhost:9000/user/hive/warehouse/bda.db/events_managed',files:['000000_0','000001_0','000002_0'],sizeLabel:'100,121 rows, 11.3 M'}; },
+     simple:'Creates a new table and fills it with one day of events. Because it does not say EXTERNAL, Hive owns it.',what:'CTAS (CREATE TABLE AS SELECT). A managed table is stored in Hive\'s warehouse folder. The job still reads all of events.json, because the JSON table has no partitions to skip, and writes one file per mapper.',see:'A MANAGED table in the catalogue and a new folder events_managed/ with three files in the warehouse.',vm:'about 30 seconds'}),
+   C({label:'Look at its files',code:'!hdfs dfs -ls /user/hive/warehouse/bda.db/events_managed;',run:async()=>{ await wait(700); out('Found 3 items\n-rw-r--r--   1 hadoop supergroup    4012336 2026-09-28 11:05 /user/hive/warehouse/bda.db/events_managed/000000_0\n-rw-r--r--   1 hadoop supergroup    3987105 2026-09-28 11:05 /user/hive/warehouse/bda.db/events_managed/000001_0\n-rw-r--r--   1 hadoop supergroup    3871762 2026-09-28 11:05 /user/hive/warehouse/bda.db/events_managed/000002_0'); },
+     simple:'Runs a Linux command from inside Hive (the <code>!</code> at the start) to list the table\'s files in HDFS.',what:'The data really is in the warehouse. The files are named by the task that wrote them.',see:'Three files of about 4 MB.',vm:'about 2 seconds'}),
+   C({label:'Drop the managed table',code:'DROP TABLE events_managed;',run:async()=>{ await wait(400); out('OK'); timeTaken(0.381); S.tables.events_managed.gone=true; renderAll(); await wait(1200); delete S.tables.events_managed; },
+     simple:'Deletes the managed table. Hive owns it, so Hive deletes its files too.',what:'For a managed table, DROP removes both the definition from the catalogue and the folder from HDFS. If HDFS trash is enabled, the folder goes to <code>.Trash</code> for a while; on the lab VM it is gone at once.',see:'The table disappears from the catalogue and its folder disappears from the warehouse.',vm:'instant'}),
+   C({label:'Check the warehouse',code:'!hdfs dfs -ls /user/hive/warehouse/bda.db/ ;',run:async()=>{ await wait(700); },simple:'Lists what is left in the database\'s folder.',what:'An empty listing prints nothing at all.',see:'Nothing: the data is gone.',vm:'about 2 seconds'}),
+   C({label:'Drop the external table',code:'-- now the external one\nDROP TABLE events_raw;',run:async()=>{ await wait(400); out('OK'); timeTaken(0.244); S.tables.events_raw.gone=true; renderAll(); await wait(1200); delete S.tables.events_raw; },
+     simple:'Deletes the external table. Hive does not own the files, so it only forgets the definition.',what:'Lines starting with <code>--</code> are SQL comments.',see:'events_raw leaves the catalogue; events.json stays highlighted in the landing area.',vm:'instant'}),
+   C({label:'Check the landing folder',code:'!hdfs dfs -ls /user/${env:USER}/lab3/ ;',run:async()=>{ await wait(700); out('Found 1 items\n-rw-r--r--   1 hadoop supergroup  340336945 2026-09-28 10:06 /user/hadoop/lab3/events.json'); },simple:'Checks that the original data is still there.',what:'This is the whole point of the step.',see:'events.json is still there, all 340,336,945 bytes.',vm:'about 2 seconds'}),
+   C({label:'Recreate events_raw',code:CREATE_RAW,run:async()=>{ await wait(400); out('OK'); timeTaken(0.512); addRaw(); },simple:'Puts the external table back, as the sheet says, because later steps read it.',what:'Same statement as step 2. The jar added earlier is still loaded in this session.',see:'events_raw is back in the catalogue; it finds the same file instantly.',vm:'instant'})
+  ],take:['DROP on a managed table deletes the data. DROP on an external table deletes only the description.','If you did not create the files, the table is EXTERNAL. There is no undo for a mistaken DROP.']},
+ {title:'Enable dynamic partitioning',short:'settings',intro:'Allow Hive to create partitions automatically from the data, within limits.',
+  cmds:[
+   C({label:'Turn it on for this session',code:'SET hive.exec.dynamic.partition = true;\nSET hive.exec.dynamic.partition.mode = nonstrict;\nSET hive.exec.max.dynamic.partitions = 1000;\nSET hive.exec.max.dynamic.partitions.pernode = 200;\nSET hive.exec.dynamic.partition.mode;',run:()=>{ S.settings.dyn=true; out('hive.exec.dynamic.partition.mode=nonstrict'); },
+     simple:'Lets one INSERT create a folder for every date it finds, instead of you naming each date by hand.',what:'<code>nonstrict</code> allows every partition column to be filled from the data. The two limits stop a mistake (say, partitioning by a column with a million values) from creating a million folders and overwhelming the metastore. A <code>SET</code> with no value prints the current value.',see:'"hive.exec.dynamic.partition.mode=nonstrict". These settings disappear when you leave Hive.',vm:'instant'})
+  ],take:['Dynamic partitioning is powerful and dangerous; the limits are a safety rail.','SET changes last only for the current session.']},
+ {title:'Create a partitioned Parquet table and load it',short:'partitions',intro:'One folder per date, stored as Parquet, filled from the raw table.',
+  cmds:[
+   C({label:'Create the partitioned table',code:'CREATE TABLE events_part (\n  event_id   BIGINT,\n  event_time STRING,\n  host       STRING,\n  action     STRING,\n  bytes      BIGINT,\n  src_ip     STRING\n)\nPARTITIONED BY (event_date STRING)\nSTORED AS PARQUET;',run:async()=>{ await wait(400); out('OK'); timeTaken(0.693); S.tables.events_part={name:'events_part',ext:false,fmt:'Parquet',loc:'hdfs://localhost:9000/user/hive/warehouse/bda.db/events_part',parts:0}; },
+     simple:'Creates an empty managed table that will keep one folder per date, in Parquet format.',what:'<code>event_date</code> is not in the column list: it moves to <code>PARTITIONED BY</code> and becomes a folder name. <code>STORED AS PARQUET</code> chooses the column-oriented format.',see:'A MANAGED table with 0 partitions.',vm:'instant',
+     fix:'The sheet\'s format table says "Parquet + Snappy", but this statement does not ask for compression, and Hive\'s Parquet writer is uncompressed by default. Add <code>TBLPROPERTIES (\'parquet.compression\'=\'SNAPPY\')</code> after <code>STORED AS PARQUET</code> to get Snappy. On this data that roughly halves the Parquet size again (about 97 M down to about 48 M).'}),
+   C({label:'Fill it, one folder per date',code:'INSERT OVERWRITE TABLE events_part PARTITION (event_date)\nSELECT event_id, event_time, host, action, bytes, src_ip, event_date\nFROM events_raw;',run:async()=>{ await mrJob({label:'INSERT OVERWRITE TABLE events_part PARTITION (event_date) SELECT … FROM events_raw',maps:3,reduces:0,secs:52.6,read:340372811,write:PARQ_BYTES,parts:{raw:true,table:'events_raw'},stats:'Loading data to table bda.events_part partition (event_date=null)\n\n\n\t Time taken to load dynamic partitions: 2.418 seconds\n\t Time taken for adding to write entity : 0.004 seconds'}); timeTaken(52.627); const t=S.tables.events_part; t.parts=21; t.sizeLabel='2,000,000 rows, '+mb(PARQ_BYTES); },
+     simple:'Copies every row into the new table. Hive puts each row in the folder for its date, creating the folders as it goes.',what:'<code>PARTITION (event_date)</code> with no value means "dynamic: take it from the data". Hive takes the partition value from the <strong>last</strong> column of the SELECT, by position, not by name. That is why <code>event_date</code> is written last.',see:'21 date folders appear under events_part. Each mapper writes its own file into each folder.',vm:'about a minute'}),
+   C({label:'List the partitions',code:'SHOW PARTITIONS events_part;',run:async()=>{ await wait(400); out('OK'); DAYS.forEach(d=>out('event_date='+d[0])); timeTaken(0.214,21); S.evidence.parts=true; },
+     simple:'Lists the date folders Hive created.',what:'This list comes from the catalogue, not from scanning HDFS: the metastore keeps one row per partition.',see:'event_date=2026-08-01 to 2026-08-20, and very likely one more: 2026-08-21.',vm:'instant',
+     fix:'The sheet expects twenty partitions. Most runs show <strong>21</strong>. In lab 3.1\'s gen.py, <code>random.randint(0, 20 * 86400)</code> includes the end point, exactly midnight of 21 August, and with 2 million draws that usually happens about once. The extra partition here holds 1 row. It is not an error; it is a nice example of how one boundary value creates a whole partition.'})
+  ],take:['A partition is a folder; the partition column is part of the folder name, not the file.','Dynamic partitioning fills partitions by position: the last SELECT column becomes the partition value.']},
+ {title:'Verify pruning in the plan',short:'EXPLAIN',intro:'Ask Hive for its plan and count the folders it intends to read.',
+  cmds:[
+   C({label:'Make Hive really read the files',extra:true,code:'SET hive.compute.query.using.stats = false;',run:()=>{ S.settings.nostats=true; },
+     simple:'Stops Hive from answering count(*) from its saved statistics instead of reading the data.',what:'When Hive loaded events_part it also saved row counts per partition in the catalogue. With this setting on (the default in Hive 3), <code>count(*)</code> can be answered from those numbers without reading a single file. Then EXPLAIN shows no folders at all and the step 7 timings say nothing about pruning. Turning it off makes the plan and the timings honest.',see:'Nothing printed.',vm:'instant'}),
+   C({label:'Plan for one day',code:"EXPLAIN EXTENDED\nSELECT count(*) FROM events_part WHERE event_date = '2026-08-05';",run:async()=>{ await wait(600); S.lastRead={table:'events_part',parts:['2026-08-05']}; out(explainText(['2026-08-05'])); timeTaken(0.462,1); S.evidence.explain=S.evidence.explain||1; },
+     simple:'Shows how Hive would run the query, without running it.',what:'Look for <code>Path -&gt; Alias</code>: the folders the job will read. There is one. Also notice there is no Filter Operator: the date condition was used up entirely by choosing the folder.',see:'One path, event_date=2026-08-05. In the HDFS panel one folder is blue and twenty are striped.',vm:'instant'}),
+   C({label:'Plan for everything',code:'EXPLAIN EXTENDED\nSELECT count(*) FROM events_part;',run:async()=>{ await wait(600); S.lastRead={table:'events_part',parts:'all'}; out(explainText(DAYS.map(d=>d[0]))); timeTaken(0.501,1); S.evidence.explain=true; },
+     simple:'The same, with no filter.',what:'With nothing to prune, every partition folder is listed.',see:'21 paths. Copy the two Path -&gt; Alias extracts into your report: 1 against 21.',vm:'instant'})
+  ],take:['Pruning happens before any data is read: Hive simply leaves folders out of the job.','EXPLAIN is the proof. Count the paths.']},
+ {title:'Show what a non-partition filter costs',short:'host filter',intro:'Run three counts and compare how much each one reads.',
+  cmds:[
+   C({label:'Print column headers',code:'SET hive.cli.print.header = true;',run:()=>{ S.settings.header=true; },simple:'Makes Hive print column names above results.',what:'A display setting for the CLI.',see:'Results now start with a header line, like <code>_c0</code> for an unnamed count.',vm:'instant'}),
+   C({label:'One day',code:"-- prunes to one directory\nSELECT count(*) FROM events_part WHERE event_date = '2026-08-05';",run:async()=>{ await mrJob({label:"count(*) WHERE event_date = '2026-08-05'",maps:1,reduces:1,secs:18.9,read:5161206,write:105,parts:{table:'events_part',parts:['2026-08-05']},result:null}); hdr(['_c0']); out('99634'); timeTaken(18.912,1); S.results.push({label:'date filter',read:'1 of 21 folders',secs:18.9,ans:'99,634'}); },
+     simple:'Counts one day. Hive opens one folder only.',what:'One mapper is enough for one folder\'s small files.',see:'99,634 in about 19 seconds; most of that is starting the job.',vm:'about 20 seconds'}),
+   C({label:'One host, all days',code:"-- reads all twenty directories\nSELECT count(*) FROM events_part WHERE host = 'host042';",run:async()=>{ await mrJob({label:"count(*) WHERE host = 'host042'",maps:3,reduces:1,secs:33.6,read:PARQ_BYTES,write:105,parts:{table:'events_part',parts:'all'},result:null}); hdr(['_c0']); out('10347'); timeTaken(33.581,1); S.results.push({label:'host filter',read:'all 21 folders',secs:33.6,ans:'10,347'}); },
+     simple:'Counts one host. The host is inside the files, not in a folder name, so every folder must be opened.',what:'Pruning only works on partition columns. Parquet still helps a little (it can skip row groups using min/max statistics), but every file is opened.',see:'10,347: fewer rows than the date query, yet slower, because it read all 21 folders.',vm:'about 35 seconds'}),
+   C({label:'One host on one day',code:"-- prunes, then filters inside\nSELECT count(*) FROM events_part WHERE event_date = '2026-08-05' AND host = 'host042';",run:async()=>{ await mrJob({label:"count(*) WHERE event_date = '2026-08-05' AND host = 'host042'",maps:1,reduces:1,secs:19.4,read:5161206,write:105,parts:{table:'events_part',parts:['2026-08-05']},result:null}); hdr(['_c0']); out('471'); timeTaken(19.402,1); S.results.push({label:'date + host',read:'1 of 21 folders',secs:19.4,ans:'471'}); },
+     simple:'First choose the folder by date, then look for the host inside it.',what:'The same 471 events that MongoDB and HBase answered in lab 3.1.',see:'471, as fast as the first query.',vm:'about 20 seconds'})
+  ],take:['A filter on the partition column decides which folders are read; any other filter is applied after reading.','So partition on what you filter by most often, which is almost always a date.']},
+ {title:'Measure JSON against Parquet',short:'formats',intro:'Compare storage size and the time to add up one column.',
+  cmds:[
+   C({label:'Size of each copy',code:'!hdfs dfs -du -s -h /user/${env:USER}/lab3/;\n!hdfs dfs -du -s -h /user/hive/warehouse/bda.db/events_part;',run:async()=>{ await wait(800); out(`324.6 M  324.6 M  /user/hadoop/lab3\n${mb(PARQ_BYTES)}  ${mb(PARQ_BYTES)}  /user/hive/warehouse/bda.db/events_part`); S.sizes.json=JSON_BYTES; S.sizes.parq=PARQ_BYTES; },
+     simple:'Shows how much space each version of the same data takes.',what:'<code>-du -s -h</code>: disk usage, summarised to one total, in human units.',see:`JSON 324.6 M, Parquet ${mb(PARQ_BYTES)}: about 30% of the size, without compression. The date is not even stored in the Parquet files (it is the folder name).`,vm:'about 4 seconds'}),
+   C({label:'Sum one column from JSON',code:'SELECT sum(bytes) FROM events_raw;',run:async()=>{ await mrJob({label:'SELECT sum(bytes) FROM events_raw',maps:3,reduces:1,secs:41.8,read:340372811,write:113,parts:{raw:true,table:'events_raw'},result:null}); hdr(['_c0']); out(TOTAL_SUM); timeTaken(41.806,1); S.results.push({label:'sum, JSON',read:'all 325 MB, every field parsed',secs:41.8,ans:'500,228,176,370'}); },
+     simple:'Adds up the bytes column, reading the JSON.',what:'Every line must be read and parsed as JSON, all seven fields, just to use one.',see:'500,228,176,370 in about 42 seconds.',vm:'about 40 seconds'}),
+   C({label:'Sum one column from Parquet',code:'SELECT sum(bytes) FROM events_part;',run:async()=>{ await mrJob({label:'SELECT sum(bytes) FROM events_part',maps:3,reduces:1,secs:21.3,read:16893544,write:113,parts:{table:'events_part',parts:'all'},result:null}); hdr(['_c0']); out(TOTAL_SUM); timeTaken(21.287,1); S.results.push({label:'sum, Parquet',read:'only the bytes column, about 16 MB',secs:21.3,ans:'500,228,176,370'}); S.evidence.sizes=true; },
+     simple:'Adds up the same column, reading Parquet.',what:'Parquet stores each column separately, so the job reads only the <code>bytes</code> column: about 16 MB instead of 325 MB. Look at "HDFS Read" in the two job summaries.',see:'The same total, in about half the time. Take away the roughly 15 seconds every job spends starting up, and the actual reading was several times faster.',vm:'about 20 seconds'})
+  ],take:['Same answer, a third of the space, a fraction of the bytes read.','Column formats win biggest when a query uses few columns.']},
+ {title:'Create a bucketed table',short:'buckets',intro:'Within each date folder, split rows into 16 files by host.',
+  cmds:[
+   C({label:'Create the bucketed table',code:'CREATE TABLE events_bucketed (\n  event_id BIGINT, event_time STRING, host STRING,\n  action STRING, bytes BIGINT, src_ip STRING\n)\nPARTITIONED BY (event_date STRING)\nCLUSTERED BY (host) INTO 16 BUCKETS\nSTORED AS PARQUET;',run:async()=>{ await wait(400); out('OK'); timeTaken(0.588); S.tables.events_bucketed={name:'events_bucketed',ext:false,fmt:'Parquet',loc:'hdfs://localhost:9000/user/hive/warehouse/bda.db/events_bucketed',parts:0,buckets:16}; },
+     simple:'Like events_part, but each date folder will hold exactly 16 files, and a host always goes to the same one.',what:'<code>CLUSTERED BY (host) INTO 16 BUCKETS</code>: file number = hash of host, modulo 16.',see:'A new managed table, still empty.',vm:'instant'}),
+   C({label:'Ask Hive to enforce bucketing',code:'SET hive.enforce.bucketing = true;',run:()=>{ out('Query returned non-zero code: 1, cause: hive configuration hive.enforce.bucketing does not exists.','err'); },
+     simple:'Old Hive versions needed this so inserts respected the buckets.',what:'Since Hive 2.0 bucketing is always enforced, and the setting was removed.',see:'An error, which is harmless.',vm:'instant',fix:'Hive 3 rejects this line because the setting no longer exists. Skip it: bucketing is enforced automatically.'}),
+   C({label:'Fill it',code:'INSERT OVERWRITE TABLE events_bucketed PARTITION (event_date)\nSELECT event_id, event_time, host, action, bytes, src_ip, event_date FROM events_raw;',run:async()=>{ await mrJob({label:'INSERT OVERWRITE TABLE events_bucketed … FROM events_raw',maps:3,reduces:16,secs:74.2,read:340372811,write:PARQ_BYTES-1200000,parts:{raw:true,table:'events_raw'},stats:'Loading data to table bda.events_bucketed partition (event_date=null)\n\n\n\t Time taken to load dynamic partitions: 3.902 seconds\n\t Time taken for adding to write entity : 0.005 seconds'}); timeTaken(74.217); const t=S.tables.events_bucketed; t.parts=21; t.sizeLabel='16 files per date folder'; },
+     simple:'Copies the data in again, this time sorting each host into its bucket file.',what:'This job needs 16 reducers: each one writes one bucket file per date. That is why it is slower than the partition-only load.',see:'21 folders again, each with 16 small bucket files (the little bars inside each tile).',vm:'about a minute and a half'}),
+   C({label:'List one partition\'s files',code:'!hdfs dfs -ls /user/hive/warehouse/bda.db/events_bucketed/event_date=2026-08-05/;',run:async()=>{ await wait(700); const lines=['Found 16 items']; for(let i=0;i<16;i++) lines.push(`-rw-r--r--   1 hadoop supergroup     ${String(rnd(270000,370000)).padStart(7)} 2026-09-28 11:31 /user/hive/warehouse/bda.db/events_bucketed/event_date=2026-08-05/${String(i).padStart(6,'0')}_0`); out(lines.join('\n')); },
+     simple:'Shows the 16 bucket files inside one date folder.',what:'File 000000_0 is bucket 1, 000001_0 is bucket 2, and so on.',see:'Exactly 16 files, all a similar size because 200 hosts spread fairly evenly over 16 buckets.',vm:'about 2 seconds'}),
+   C({label:'Sample one bucket',code:'SELECT count(*) FROM events_bucketed TABLESAMPLE (BUCKET 1 OUT OF 16 ON host);',run:async()=>{ await mrJob({label:'count(*) … TABLESAMPLE (BUCKET 1 OUT OF 16 ON host)',maps:1,reduces:1,secs:22.7,read:6519230,write:106,parts:{table:'events_bucketed',parts:'all',bucket:true},result:null}); hdr(['_c0']); out('130217'); timeTaken(22.741,1); },
+     simple:'Counts only the first bucket file of every date folder: a sample of about 1 host in 16.',what:'Because the table is bucketed on host, Hive can read just file 000000_0 in each folder instead of hashing every row. The sample is a set of whole hosts (all their events), not random rows.',see:'130,217: about one sixteenth of all 2,000,000 rows (13 of the 200 hosts landed in bucket 1).',vm:'about 20 seconds',fix:'The sheet expects "roughly one sixteenth of that partition\'s rows", but this query has no date filter, so it samples the whole table. For one partition add <code>WHERE event_date = \'2026-08-05\'</code>; that gives about 6,500.'})
+  ],take:['Buckets are a fixed number of files chosen by a hash, with no extra folders.','They pay off for sampling by entity and for joins on the bucket column; otherwise they are just extra work at load time.']},
+ {title:'Write the analytical query',short:'window query',intro:'For each host, find its busiest day and keep it only if that day was 1.5 times the host\'s own average.',
+  cmds:[
+   C({label:'Run the baseline query',code:'SELECT host, event_date, daily_bytes, avg_bytes, rn\nFROM (\n  SELECT host, event_date,\n         sum(bytes) AS daily_bytes,\n         avg(sum(bytes)) OVER (PARTITION BY host) AS avg_bytes,\n         row_number() OVER (PARTITION BY host ORDER BY sum(bytes) DESC) AS rn\n  FROM events_part\n  GROUP BY host, event_date\n) t\nWHERE rn = 1 AND daily_bytes > 1.5 * avg_bytes\nORDER BY daily_bytes DESC\nLIMIT 20;',run:async()=>{ await mrJob({label:'Per-host baseline with window functions (3 stages)',maps:3,reduces:1,secs:71.5,read:33787088,write:0,parts:{table:'events_part',parts:'all'},result:null}); hdr(['host','event_date','daily_bytes','avg_bytes','rn']); timeTaken(71.534); S.windowRows=[]; S.evidence.window=true; },
+     simple:'Inside: total bytes per host per day. Then, for each host, its average day and a ranking of its days from busiest. Outside: keep each host\'s busiest day only if it is more than 1.5 times that host\'s average.',what:'<code>OVER (PARTITION BY host)</code> is a window: "among this host\'s rows". Unlike GROUP BY, it adds the average to every row instead of collapsing them. <code>row_number()</code> numbers each host\'s days from busiest.',see:'0 rows. The query is correct; the data is the reason.',vm:'about a minute',
+     fix:'The sheet expects "up to 20 rows", but on this dataset the answer is empty. gen.py picks hosts and byte counts uniformly at random, so every host\'s days look alike: the busiest day of any host is at most about 1.17 times its own average (host090 on 2026-08-04). Random data has no anomalies to find. The next two commands plant one, the way a real exfiltration day would look.'}),
+   C({label:'Plant an anomaly: host042 sends three times its usual traffic on 12 August',extra:true,code:"INSERT INTO TABLE events_part PARTITION (event_date = '2026-08-12')\nSELECT event_id + 3000000, event_time, host, 'file_read', bytes * 2, src_ip\nFROM events_part\nWHERE event_date = '2026-08-12' AND host = 'host042';",run:async()=>{ await mrJob({label:"INSERT INTO events_part PARTITION (event_date='2026-08-12') … host042 burst",maps:1,reduces:0,secs:20.3,read:5164801,write:9312,parts:{table:'events_part',parts:['2026-08-12']},stats:"Loading data to table bda.events_part partition (event_date=2026-08-12)"}); timeTaken(20.317); S.injected=true; },
+     simple:'Adds 524 extra events for host042 on 12 August, each moving twice the usual bytes, so that day stands out.',what:'<code>INSERT INTO</code> adds to a partition (where INSERT OVERWRITE would replace it). The new event IDs start at 3,000,000 so they can be found and removed afterwards. host042\'s 12 August grows from about 130 MB to about 389 MB.',see:'Only the 08-12 folder is read and written.',vm:'about 20 seconds'}),
+   C({label:'Run the baseline query again',extra:true,code:'-- same query as above',run:async()=>{ await mrJob({label:'Per-host baseline with window functions (3 stages)',maps:3,reduces:1,secs:72.1,read:33796400,write:0,parts:{table:'events_part',parts:'all'},result:null}); hdr(['host','event_date','daily_bytes','avg_bytes','rn']); out('host042\t2026-08-12\t389473794\t1.429016422E8\t1'); timeTaken(72.108,1); S.windowRows=[['host042','2026-08-12','389473794',142901642.2]]; },
+     simple:'The same question, now that one host has an unusual day.',what:'host042\'s average rises to about 143 MB because the big day is part of it, but 389 MB is still 2.7 times that.',see:'One row: host042, 2026-08-12. Every other host is still within its normal range.',vm:'about a minute'}),
+   C({label:'Remove the planted events',extra:true,code:"INSERT OVERWRITE TABLE events_part PARTITION (event_date = '2026-08-12')\nSELECT event_id, event_time, host, action, bytes, src_ip\nFROM events_part\nWHERE event_date = '2026-08-12' AND event_id < 3000000;",run:async()=>{ await mrJob({label:"INSERT OVERWRITE … event_date='2026-08-12' WHERE event_id < 3000000",maps:1,reduces:0,secs:21.1,read:5174113,write:5161206,parts:{table:'events_part',parts:['2026-08-12']},stats:"Loading data to table bda.events_part partition (event_date=2026-08-12)"}); timeTaken(21.094); S.injected=false; },
+     simple:'Puts 12 August back the way it was, because labs 4 and 5 read events_part.',what:'INSERT OVERWRITE replaces just this one partition with its original rows (IDs below 3,000,000).',see:'The 08-12 folder is rewritten; the rest are untouched.',vm:'about 20 seconds'})
+  ],take:['A window function compares each row with its group without collapsing the rows.','Comparing a host with its own history finds "unusual for this host", which a ranking across hosts cannot.','An empty result can be the right answer: check the data before blaming the query.']},
+ {title:'Query the same tables from Spark',short:'Spark SQL',intro:'Close Hive and read the same catalogue with Spark SQL.',
+  cmds:[
+   C({label:'Leave Hive',code:'-- exit hive first\nquit;',run:()=>{ S.mode='shell'; S.session=false; rmProc('hcli'); },simple:'Closes the Hive CLI and frees the Derby catalogue.',what:'Embedded Derby allows one connection, so Spark could not open the catalogue while Hive had it.',see:'The prompt returns to bash in /opt/hive; the lock is released.',vm:'instant'}),
+   C({label:'Give Spark the Hive configuration',code:'cp $HIVE_HOME/conf/hive-site.xml $SPARK_HOME/conf/ 2>/dev/null || true',run:()=>{},simple:'Tries to copy Hive\'s settings file to Spark.',what:'<code>2&gt;/dev/null</code> hides any error, and <code>|| true</code> ignores failure.',see:'Nothing printed, and on a fresh install nothing copied.',vm:'instant',fix:'A fresh Hive 3.1.3 has no <code>hive-site.xml</code> (only <code>hive-default.xml.template</code>), so this copies nothing, silently. What actually connects Spark to your catalogue is the next command\'s <code>cd /opt/hive</code>: Spark\'s built-in Hive support also uses an embedded Derby <code>metastore_db</code> in the current folder, and that is the same folder Hive used.'}),
+   C({label:'Run Spark SQL from /opt/hive',code:'cd /opt/hive && spark-sql -e "SHOW DATABASES; USE bda; SHOW TABLES; SELECT event_date, count(*) FROM events_part GROUP BY event_date ORDER BY event_date LIMIT 5;"',run:async()=>{ S.cwd='/opt/hive'; S.spark=true; addProc('ss','SparkSubmit (spark-sql)','opens /opt/hive/metastore_db'); S.mode='busy'; await wait(1200);
+       out("WARN HiveConf: HiveConf of name hive.stats.jdbc.timeout does not exist\nWARN HiveConf: HiveConf of name hive.stats.retries.wait does not exist\nSpark Web UI available at http://ubuntuOS:4040\nSpark master: local[*], Application Id: local-"+Date.now(),'dim');
+       out('bda\ndefault\nTime taken: 1.874 seconds, Fetched 2 row(s)\nTime taken: 0.064 seconds\nbda\tevents_bucketed\tfalse\nbda\tevents_part\tfalse\nbda\tevents_raw\tfalse\nTime taken: 0.138 seconds, Fetched 3 row(s)');
+       await wait(1000); S.lastRead={table:'events_part',parts:'all'}; out(DAYS.slice(0,5).map(d=>d[0]+'\t'+d[1]).join('\n')+'\nTime taken: 6.412 seconds, Fetched 5 row(s)'); S.mode='shell'; S.spark=false; rmProc('ss'); },
+     simple:'Starts Spark SQL in the same folder, so it finds the same catalogue, and runs four statements.',what:'<code>-e "…"</code> runs the statements and exits. Spark sees database bda and its three tables without any CREATE: one definition, many engines. Spark reads the Parquet files itself, without MapReduce, so the count takes seconds, not tens of seconds.',see:'bda and default; three tables; the first five dates with their counts.',vm:'about 30 seconds including start-up',
+     fix:'If spark-sql says the metastore schema version does not match (Spark\'s built-in Hive client is 2.3, your catalogue was created by Hive 3.1), the quick lab fix is to add <code>--conf spark.hadoop.hive.metastore.schema.verification=false</code>. If it reports "Another instance of Derby may have already booted the database", a Hive CLI is still open somewhere.'})
+  ],take:['The metastore is shared: Spark used Hive\'s table definitions directly.','With embedded Derby, "which folder am I in?" decides which catalogue you get.']},
+ {title:'Shut down',short:'shutdown',intro:'Stop YARN and HDFS. The catalogue and the warehouse stay on disk.',
+  cmds:[
+   C({label:'Stop YARN',code:'stop-yarn.sh',run:async()=>{ out('Stopping nodemanagers'); await wait(300); out('Stopping resourcemanager'); rmProc('nm'); rmProc('rm'); S.yarn=false; },simple:'Turns off the job runner.',what:'Stop YARN first, since its jobs read from HDFS.',see:'ResourceManager and NodeManager disappear.',vm:'about 10 seconds'}),
+   C({label:'Stop HDFS',code:'stop-dfs.sh',run:async()=>{ out('Stopping namenodes on [localhost]'); await wait(300); out('Stopping datanodes'); await wait(300); out('Stopping secondary namenodes [ubuntuOS]'); ['nn','dn','snn'].forEach(rmProc); S.hdfs=false; },simple:'Turns off the file system.',what:'The files stay on disk. Labs 4 and 5 read events_part.',see:'The three HDFS processes disappear.',vm:'about 10 seconds'}),
+   C({label:'Check',code:'jps',run:()=>out(String(newPid())+' Jps'),simple:'Lists running Java programs.',what:'Hive has no server running in this lab: the CLI was closed in step 11, and Derby only runs inside whichever program opens it.',see:'Only Jps.',vm:'instant'})
+  ],take:['Nothing to stop for the metastore: embedded Derby runs only inside Hive or Spark while they are open.','Keep events_part; if you need space, drop events_bucketed first.']}
+];
+function explainText(paths){
+  const sz=paths.length===1?partBytes(99634):PARQ_BYTES, rows=paths.length===1?99634:2000000;
+  const L=['STAGE DEPENDENCIES:','  Stage-1 is a root stage','  Stage-0 depends on stages: Stage-1','','STAGE PLANS:','  Stage: Stage-1','    Map Reduce','      Map Operator Tree:','          TableScan','            alias: events_part',...(paths.length===1?["            filterExpr: (event_date = '2026-08-05') (type: boolean)"]:[]),`            Statistics: Num rows: ${rows} Data size: ${sz*4} Basic stats: COMPLETE Column stats: NONE`,'            GatherStats: false','            Select Operator',`              Statistics: Num rows: ${rows} Data size: ${sz*4} Basic stats: COMPLETE Column stats: NONE`,'              Group By Operator','                aggregations: count()','                mode: hash','                outputColumnNames: _col0','                Reduce Output Operator','                  sort order: ','                  tag: -1','                  value expressions: _col0 (type: bigint)','                  auto parallelism: false','      Path -> Alias:'];
+  paths.forEach(p=>L.push(`        hdfs://localhost:9000/user/hive/warehouse/bda.db/events_part/event_date=${p} [events_part]`));
+  L.push('      Path -> Partition:');
+  paths.slice(0,2).forEach(p=>L.push(`        hdfs://localhost:9000/user/hive/warehouse/bda.db/events_part/event_date=${p} `,'          Partition','            base file name: event_date='+p,'            input format: org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat','            output format: org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat','            partition values:','              event_date '+p,'              ...'));
+  if(paths.length>2) L.push(`        ... (${paths.length-2} more partitions)`);
+  L.push('      Truncated Path -> Alias:'); paths.forEach(p=>L.push(`        /bda.db/events_part/event_date=${p} [events_part]`));
+  L.push('      Reduce Operator Tree:','        Group By Operator','          aggregations: count(VALUE._col0)','          mode: mergepartial','','  Stage: Stage-0','    Fetch Operator','      limit: -1');
+  return L.join('\n');
+}
+
+/* ================= step UI ================= */
+let cur=0;
+const done=STEPS.map(s=>s.cmds.map(()=>false));
+const stepDone=i=>done[i].every(Boolean);
+function nextCmd(){ for(let i=0;i<STEPS.length;i++) for(let j=0;j<STEPS[i].cmds.length;j++) if(!done[i][j]) return [i,j]; return null; }
+function renderRail(){ $('#rail').innerHTML=STEPS.map((s,i)=>`<button role="tab" aria-selected="${i===cur}" class="${i===cur?'cur':''} ${stepDone(i)?'done':''}" data-i="${i}"><b>${i+1}</b>${s.short}</button>`).join(''); }
+$('#rail').addEventListener('click',e=>{ const b=e.target.closest('button[data-i]'); if(!b) return; cur=+b.dataset.i; renderStep(); renderRail(); });
+function where(c){ return c.code.startsWith('hive')&&c.code.length<6?'bash':(['SELECT','CREATE','INSERT','SET','DROP','!','--','USE','SHOW','EXPLAIN','ADD','quit'].some(k=>c.code.startsWith(k))?'hive':'bash'); }
+function renderStep(){
+  const s=STEPS[cur], nx=nextCmd();
+  let h=`<div class="step-head"><h2>Step ${cur+1}. ${s.title}</h2><p class="mb-2">${s.intro}</p></div>`;
+  if(nx && nx[0]<cur) h+=`<div class="ff-box"><p class="mb-2">Earlier steps have not been run yet. Run them yourself, or let the simulator run them quickly.</p><button class="btn btn-ink btn-sm" id="ffBtn">Run steps ${nx[0]+1} to ${cur} for me</button></div>`;
+  h+='<div class="cmd-list" id="cmdList">';
+  s.cmds.forEach((c,j)=>{ const isNext=nx&&nx[0]===cur&&nx[1]===j, isDone=done[cur][j], w=where(c);
+    h+=`<div class="cmd ${isDone?'done':''} ${isNext?'next':''}" id="cmd${j}"><div class="cmd-top"><span class="term-badge ${w==='hive'?'hive':''}">${w==='hive'?'hive&gt;':'bash'}</span>${c.extra?'<span class="extra">extra, not on the sheet</span>':''}<span class="cmd-label">${c.label}</span><span class="status">${isDone?'done':''}</span><button class="btn btn-sm ${isNext?'btn-ink':'btn-line'} run" data-j="${j}" ${isNext&&!S.busy?'':'disabled'}>${isDone?'Ran':'Run'}</button></div><pre>${esc(c.code)}</pre>
+    ${isDone?`<div class="cmd-explain"><p class="simple"><strong>In plain words:</strong> ${c.simple}</p><p>${c.what}</p><p class="see">What changed: ${c.see}</p>${c.fix?`<p class="fix mb-2"><strong>Note on the lab sheet:</strong> ${c.fix}</p>`:''}<p class="vm mb-0">On the VM this takes ${c.vm}.</p></div>`:''}</div>`; });
+  if(nx && nx[0]===cur && s.cmds.length-nx[1]>1) h+=`<button class="btn btn-line btn-sm mb-2" id="runRest" ${S.busy?'disabled':''}>Run the rest of this step</button>`;
+  if(stepDone(cur)) h+=`<div class="step-takeaway"><div class="panel-title mb-1">What this step taught</div><ul>${s.take.map(t=>`<li>${t}</li>`).join('')}</ul>${cur<STEPS.length-1?`<button class="btn btn-ink btn-sm mt-2" id="nextStep">Go to step ${cur+2}</button>`:`<a class="btn btn-ink btn-sm mt-2" href="#conclusion">Read what the lab teaches</a>`}</div>`;
+  h+='</div>';
+  $('#stepPane').innerHTML=h;
+  const list=$('#cmdList'), tgt=list&&(list.querySelector('.cmd.next')||list.querySelector('.step-takeaway'));
+  if(list&&tgt) list.scrollTop=Math.max(0,tgt.offsetTop-list.offsetTop-8);
+}
+$('#stepPane').addEventListener('click',async e=>{
+  const r=e.target.closest('button.run'); if(r&&!r.disabled){ await runCmd(cur,+r.dataset.j,false); return; }
+  if(e.target.id==='nextStep'){ cur++; renderStep(); renderRail(); $('#sim').scrollIntoView(); return; }
+  if(e.target.id==='runRest'){ const nx=nextCmd(); for(let j=nx[1];j<STEPS[cur].cmds.length;j++) await runCmd(cur,j,false); return; }
+  if(e.target.id==='ffBtn') await fastForward(cur);
+});
+function focusFor(c){ const code=c.code; if(/start-|stop-|jps|wget|tar |echo |rm -f|cp /.test(code)&&!/hive-site/.test(code)) return 'zMachine'; if(/schematool|CREATE|DROP|USE|ADD JAR|quit|spark-sql|SHOW PARTITIONS/.test(code)&&!/INSERT|AS SELECT/.test(code)) return 'zMeta'; if(/!hdfs|EXPLAIN/.test(code)) return 'zWh'; return 'zJob'; }
+function focusZones(id){ ['zMachine','zMeta','zWh','zJob'].forEach(z=>$('#'+z).classList.toggle('focus',z===id)); const sys=$('#sys'); if(getComputedStyle(sys).position==='sticky'){ const el=$('#'+id); sys.scrollTo({top:Math.max(0,el.offsetTop-52),behavior:reduceMotion?'auto':'smooth'}); } }
+async function runCmd(i,j,fast){
+  if(S.busy) return; const c=STEPS[i].cmds[j]; S.busy=true; jump=true;
+  if(c.code!=='-- same query as above') echo(c.code); else echo(STEPS[9].cmds[0].code);
+  focusZones(focusFor(c)); if(!fast) renderStep();
+  try{ await c.run(fast); } catch(err){ console.error(err); out('(simulator error: '+err.message+')','err'); }
+  done[i][j]=true; S.busy=false; termDirty=true;
+  if(!fast){ renderStep(); renderRail(); renderAll(); }
+}
+async function fastForward(upTo){ fastMode=true; const b=$('#ffBtn'); if(b){ b.disabled=true; b.textContent='Running…'; } let nx; while((nx=nextCmd())&&nx[0]<upTo) await runCmd(nx[0],nx[1],true); fastMode=false; renderStep(); renderRail(); renderAll(); }
+window.__sim={S,STEPS,nextCmd,done};
+renderRail(); renderStep(); renderAll();
+})();
+</script>
+</body>
+</html>
